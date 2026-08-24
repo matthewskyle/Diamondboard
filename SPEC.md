@@ -1,6 +1,9 @@
 # Baseball Field Diagram — Phase 1 Spec
 
-**Stack:** Blazor WebAssembly (.NET), SVG rendering, no backend.
+**Stack:** ~~Blazor WebAssembly (.NET)~~ **React + TypeScript (Vite)**, SVG rendering, no backend.
+> Superseded during implementation — nothing in Phase 1 needs .NET. The C# model
+> shapes in §7 are implemented as TypeScript equivalents, and the open items in
+> §11 are resolved in [DECISIONS.md](DECISIONS.md).
 **Target devices (priority order):** iPad (Safari) → phone → desktop. Portrait-first.
 **Persistence:** None this phase. All state is in-memory client-side.
 
