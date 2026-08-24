@@ -5,7 +5,7 @@ export type TokenType = 'fielder' | 'runner' | 'ball';
 export interface Token {
   id: string;
   type: TokenType;
-  /** Fielders show a position label; runners show R1, R2...; the ball has none. */
+  /** Fielders show a position label; runners and the ball are unlabeled. */
   label?: string;
   x: number;
   y: number;

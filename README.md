@@ -23,15 +23,16 @@ refresh returns the board to its default arrangement.
 | Tool | What it does |
 | --- | --- |
 | **Move** | Drag any player, runner, or the ball. |
-| **Runner** | Tap the field to drop a runner (R1, R2, …). |
+| **Runner** | Tap the field to drop a runner. |
 | **Ball** | Tap to place the ball. Tapping again moves it — there's only one. |
 | **Draw** | Freehand over the field with a finger or an Apple Pencil. |
 | **Erase** | Tap a runner, the ball, or a drawing to remove it. Fielders stay. |
-| **Undo** / **Reset** | Step back the last change, or start over. |
+| **Undo** | Step back the last change — a move, an add, a delete, a stroke. |
+| **New play** | Clear runners, the ball and drawings, and send the fielders home. |
 
-To animate: arrange the players and press **Set start**, move them where they
-should end up and press **Set end**, then **Play**. **To start** puts everyone
-back on the start arrangement.
+To animate: arrange the players and press **Start**, move them where they should
+end up and press **End**, then **Play**. The rewind button puts everyone back on
+the start arrangement.
 
 ## Layout
 
@@ -44,12 +45,13 @@ src/
     hitTest.ts         what a tap landed on
     path.ts            stroke smoothing and point/segment math
   components/     # FieldSurface (static), FieldStage (pointer input), TokenLayer,
-                  # StrokeLayer, Toolbar
+                  # StrokeLayer, Toolbar, PlayControls, ToolIcons
   hooks/          # useTween — the requestAnimationFrame transport
 ```
 
 `fieldGeometry.ts` is the single source of truth for where anything on the field
-sits; nothing else hardcodes a coordinate.
+sits; nothing else hardcodes a coordinate. Its proportions and colors are
+measured from the reference diagram — see DECISIONS.md for the model.
 
 See [SPEC.md](SPEC.md) for the Phase 1 scope and [DECISIONS.md](DECISIONS.md)
 for the choices made where the spec left things open.

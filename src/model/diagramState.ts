@@ -54,13 +54,7 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
     }
 
     case 'addRunner': {
-      const token: Token = {
-        id: nextId('runner'),
-        type: 'runner',
-        label: `R${nextRunnerNumber(state.tokens)}`,
-        x: action.at.x,
-        y: action.at.y,
-      };
+      const token: Token = { id: nextId('runner'), type: 'runner', x: action.at.x, y: action.at.y };
       return push(
         { ...state, tokens: [...state.tokens, token] },
         { kind: 'removeToken', id: token.id },
@@ -143,19 +137,6 @@ export function capturePositions(tokens: readonly Token[]): PositionMap {
   const positions: PositionMap = {};
   for (const t of tokens) positions[t.id] = { x: t.x, y: t.y };
   return positions;
-}
-
-function nextRunnerNumber(tokens: readonly Token[]): number {
-  // Numbering never renumbers survivors on delete; it just fills the lowest gap.
-  const taken = new Set(
-    tokens
-      .filter((t) => t.type === 'runner')
-      .map((t) => Number(t.label?.slice(1)))
-      .filter((n) => Number.isFinite(n)),
-  );
-  let n = 1;
-  while (taken.has(n)) n += 1;
-  return n;
 }
 
 function push(state: DiagramState, entry: UndoEntry): DiagramState {

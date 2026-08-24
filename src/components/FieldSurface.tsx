@@ -6,6 +6,7 @@ import {
   HOME,
   HOME_CIRCLE_RADIUS,
   HOME_PLATE_SIZE,
+  INFIELD_ARC_PATH,
   INFIELD_DIRT_PATH,
   INFIELD_GRASS_PATH,
   MOUND,
@@ -31,19 +32,57 @@ const HOME_PLATE_POINTS = (() => {
 /**
  * The field itself: static, and deliberately inert — every pointer event
  * belongs to the stage above it.
+ *
+ * One green covers the backdrop, the outfield and the infield, as in the
+ * reference; the dirt and the white lines do all the shape work.
  */
 export function FieldSurface() {
   return (
     <g className="field" pointerEvents="none">
-      <rect x={0} y={0} width={VIEW_BOX.width} height={VIEW_BOX.height} className="fx-backdrop" />
+      <rect x={0} y={0} width={VIEW_BOX.width} height={VIEW_BOX.height} className="fx-grass" />
       <path d={FAIR_TERRITORY_PATH} className="fx-grass" />
       <path d={OUTFIELD_ARC_PATH} className="fx-line fx-fence" />
-      <line x1={HOME.x} y1={HOME.y} x2={FOUL_POLES.left.x} y2={FOUL_POLES.left.y} className="fx-line" />
-      <line x1={HOME.x} y1={HOME.y} x2={FOUL_POLES.right.x} y2={FOUL_POLES.right.y} className="fx-line" />
+      <line
+        x1={HOME.x}
+        y1={HOME.y}
+        x2={FOUL_POLES.left.x}
+        y2={FOUL_POLES.left.y}
+        className="fx-line"
+      />
+      <line
+        x1={HOME.x}
+        y1={HOME.y}
+        x2={FOUL_POLES.right.x}
+        y2={FOUL_POLES.right.y}
+        className="fx-line"
+      />
 
       <path d={INFIELD_DIRT_PATH} className="fx-dirt" />
-      <circle cx={HOME.x} cy={HOME.y} r={HOME_CIRCLE_RADIUS} className="fx-dirt" />
-      <path d={INFIELD_GRASS_PATH} className="fx-grass-infield" />
+      <path d={INFIELD_GRASS_PATH} className="fx-grass" />
+      <path d={INFIELD_ARC_PATH} className="fx-line" />
+      <ellipse
+        cx={HOME.x}
+        cy={HOME.y}
+        rx={HOME_CIRCLE_RADIUS.x}
+        ry={HOME_CIRCLE_RADIUS.y}
+        className="fx-dirt"
+      />
+
+      <ellipse
+        cx={MOUND.x}
+        cy={MOUND.y}
+        rx={MOUND_RADIUS.x}
+        ry={MOUND_RADIUS.y}
+        className="fx-mound"
+      />
+      <rect
+        x={MOUND.x - RUBBER.width / 2}
+        y={MOUND.y - RUBBER.height / 2}
+        width={RUBBER.width}
+        height={RUBBER.height}
+        rx={1}
+        className="fx-base"
+      />
 
       {[BASES.first, BASES.second, BASES.third].map((base, i) => (
         <rect
@@ -57,16 +96,6 @@ export function FieldSurface() {
         />
       ))}
       <polygon points={HOME_PLATE_POINTS} className="fx-base" />
-
-      <circle cx={MOUND.x} cy={MOUND.y} r={MOUND_RADIUS} className="fx-mound" />
-      <rect
-        x={MOUND.x - RUBBER.width / 2}
-        y={MOUND.y - RUBBER.height / 2}
-        width={RUBBER.width}
-        height={RUBBER.height}
-        rx={1}
-        className="fx-base"
-      />
     </g>
   );
 }

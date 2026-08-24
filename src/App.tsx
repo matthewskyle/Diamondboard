@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useReducer, useState } from 'react';
+import { useCallback, useReducer, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
+import { PlayControls } from './components/PlayControls';
 import { Toolbar } from './components/Toolbar';
 import { diagramReducer, initialState } from './model/diagramState';
 import { DEFAULT_DURATION_MS, interpolatePositions } from './model/tween';
@@ -28,8 +29,7 @@ export default function App() {
   });
 
   const handlePlay = useCallback(() => {
-    if (!start || !end) return;
-    play();
+    if (start && end) play();
   }, [start, end, play]);
 
   const handleToStart = useCallback(() => {
@@ -41,41 +41,28 @@ export default function App() {
     dispatch({ type: 'reset' });
   }, []);
 
-  const hint = useMemo(() => HINTS[tool], [tool]);
-
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>Diamondboard</h1>
-        <p className="hint">{hint}</p>
-      </header>
-
       <main className="stage">
         <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} />
+        <PlayControls
+          onReset={handleReset}
+          onSetStart={() => dispatch({ type: 'captureStart' })}
+          onSetEnd={() => dispatch({ type: 'captureEnd' })}
+          onPlay={handlePlay}
+          onToStart={handleToStart}
+          hasStart={start !== null}
+          hasEnd={end !== null}
+          isPlaying={isPlaying}
+        />
       </main>
 
       <Toolbar
         tool={tool}
         onToolChange={setTool}
         onUndo={() => dispatch({ type: 'undo' })}
-        onReset={handleReset}
         canUndo={state.undoStack.length > 0}
-        onSetStart={() => dispatch({ type: 'captureStart' })}
-        onSetEnd={() => dispatch({ type: 'captureEnd' })}
-        onPlay={handlePlay}
-        onToStart={handleToStart}
-        hasStart={start !== null}
-        hasEnd={end !== null}
-        isPlaying={isPlaying}
       />
     </div>
   );
 }
-
-const HINTS: Record<Tool, string> = {
-  select: 'Drag any player, runner, or the ball.',
-  addRunner: 'Tap the field to add a runner.',
-  addBall: 'Tap the field to place the ball.',
-  pen: 'Draw on the field with a finger or pencil.',
-  erase: 'Tap a runner, the ball, or a drawing to remove it.',
-};

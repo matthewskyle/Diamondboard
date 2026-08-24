@@ -1,4 +1,4 @@
-import { BALL_RADIUS, TOKEN_RADIUS } from '../model/fieldGeometry';
+import { BALL_RADIUS, RUNNER_RADIUS, TOKEN_RADIUS } from '../model/fieldGeometry';
 import type { Point } from '../model/path';
 import type { PositionMap, Token } from '../model/types';
 
@@ -20,29 +20,34 @@ export function TokenLayer({ tokens, overrides }: Props) {
 }
 
 function TokenShape({ token, at }: { token: Token; at: Point }) {
+  const transform = `translate(${at.x} ${at.y})`;
+
   if (token.type === 'ball') {
     return (
-      <g transform={`translate(${at.x} ${at.y})`} className="token token-ball">
+      <g transform={transform} className="token token-ball">
         <circle r={BALL_RADIUS} className="tk-ball" />
-        <path d={`M ${-BALL_RADIUS * 0.55} -7 Q 0 0 ${-BALL_RADIUS * 0.55} 7`} className="tk-seam" />
-        <path d={`M ${BALL_RADIUS * 0.55} -7 Q 0 0 ${BALL_RADIUS * 0.55} 7`} className="tk-seam" />
+        <path d={`M ${-BALL_RADIUS * 0.5} -8 Q 0 0 ${-BALL_RADIUS * 0.5} 8`} className="tk-seam" />
+        <path d={`M ${BALL_RADIUS * 0.5} -8 Q 0 0 ${BALL_RADIUS * 0.5} 8`} className="tk-seam" />
       </g>
     );
   }
 
-  const isRunner = token.type === 'runner';
+  // Runners are small red dots, as in the reference — no label to read at a
+  // glance, so they never compete with the fielders for attention.
+  if (token.type === 'runner') {
+    return (
+      <g transform={transform} className="token token-runner">
+        <circle r={RUNNER_RADIUS} className="tk-runner" />
+      </g>
+    );
+  }
+
   return (
-    <g transform={`translate(${at.x} ${at.y})`} className={`token token-${token.type}`}>
-      <circle r={TOKEN_RADIUS} className={isRunner ? 'tk-runner' : 'tk-fielder'} />
-      {token.label && (
-        <text
-          className={isRunner ? 'tk-label tk-label-runner' : 'tk-label'}
-          textAnchor="middle"
-          dominantBaseline="central"
-        >
-          {token.label}
-        </text>
-      )}
+    <g transform={transform} className="token token-fielder">
+      <circle r={TOKEN_RADIUS} className="tk-fielder" />
+      <text className="tk-label" textAnchor="middle" dominantBaseline="central">
+        {token.label}
+      </text>
     </g>
   );
 }

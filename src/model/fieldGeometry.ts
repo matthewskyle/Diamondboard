@@ -1,4 +1,4 @@
-import { smoothPath, type Point } from './path';
+import type { Point } from './path';
 
 /**
  * FieldGeometry — the single source of truth for where everything lives.
@@ -7,38 +7,38 @@ import { smoothPath, type Point } from './path';
  * and pen stroke is expressed in these units; the SVG is CSS-scaled to fit the
  * container, so nothing is device-pixel dependent.
  *
- * Geometry model: "compressed real geometry". Angles are real (the foul lines
- * are a true 90-degree wedge), and radial distances from home plate are real
- * feet mapped through a piecewise-linear scale:
+ * Geometry model, matched to the reference diagram: positions are named in real
+ * feet and real bearings, then projected into the reference's stylized space in
+ * two steps.
  *
- *   r <= INFIELD_LIMIT_FT   ->  r * INFIELD_SCALE          (true to scale)
- *   r >  INFIELD_LIMIT_FT   ->  compressed toward the fence
+ *  1. Radial compression. Distance from home is real feet times INFIELD_SCALE
+ *     out to INFIELD_LIMIT_FT, then compressed beyond it, so the infield keeps
+ *     its real proportions (90 ft base paths, a 60 ft 6 in mound) while a
+ *     400-plus-foot center field still fits on screen.
+ *  2. Vertical squash. The whole field is flattened toward the viewer by
+ *     VERTICAL_SQUASH, which is what gives the reference its slightly
+ *     foreshortened look: the foul lines leave home at a 0.78 slope rather than
+ *     a true 45 degrees, and the diamond reads wider than it is deep.
  *
- * So the infield keeps real proportions (90 ft base paths, a 60 ft 6 in mound)
- * while the outfield is squeezed to fit a portrait-ish frame, which is what
- * makes the whole field readable on an iPad without shrinking the infield to
- * an unusable dot.
+ * The two arcs — the outfield fence and the top of the infield dirt — are drawn
+ * as true circles centered on the mound, again matching the reference.
  */
 
-export const VIEW_BOX = { width: 1000, height: 1000 } as const;
+export const VIEW_BOX = { width: 1000, height: 1130 } as const;
 export const VIEW_BOX_ATTR = `0 0 ${VIEW_BOX.width} ${VIEW_BOX.height}`;
 
 /** Home plate, in viewBox units. Everything else is measured from here. */
-export const HOME: Point = { x: 500, y: 880 };
+export const HOME: Point = { x: 500, y: 643 };
 
-export const INFIELD_SCALE = 3.0; // units per foot inside the infield
-export const INFIELD_LIMIT_FT = 130; // where the compression kicks in
+/** How far the field is flattened toward the viewer. 1 would be a plan view. */
+export const VERTICAL_SQUASH = 0.78;
+
+export const INFIELD_SCALE = 2.62; // units per foot, before the squash
+export const INFIELD_LIMIT_FT = 130; // where the radial compression starts
 const INFIELD_LIMIT_UNITS = INFIELD_LIMIT_FT * INFIELD_SCALE;
+export const OUTFIELD_SCALE = 1.275; // units per foot beyond the infield
 
-/** Real distance down the foul line, and where we draw the foul pole. */
-export const FOUL_LINE_FT = 330;
-const FOUL_POLE_OFFSET = 470; // units, on each axis (the 45-degree line)
-const FOUL_LINE_UNITS = FOUL_POLE_OFFSET * Math.SQRT2;
-
-export const OUTFIELD_SCALE =
-  (FOUL_LINE_UNITS - INFIELD_LIMIT_UNITS) / (FOUL_LINE_FT - INFIELD_LIMIT_FT);
-
-/** Real feet from home plate -> viewBox units. */
+/** Real feet from home plate -> radial units, before the vertical squash. */
 export function feetToUnits(feet: number): number {
   return feet <= INFIELD_LIMIT_FT
     ? feet * INFIELD_SCALE
@@ -53,7 +53,10 @@ export function feetToUnits(feet: number): number {
 export function pointAt(feet: number, angleDeg: number): Point {
   const r = feetToUnits(feet);
   const a = (angleDeg * Math.PI) / 180;
-  return { x: HOME.x + r * Math.sin(a), y: HOME.y - r * Math.cos(a) };
+  return {
+    x: HOME.x + r * Math.sin(a),
+    y: HOME.y - VERTICAL_SQUASH * r * Math.cos(a),
+  };
 }
 
 export const FOUL_ANGLE = 45;
@@ -71,91 +74,84 @@ export const BASES = {
 } as const;
 
 export const MOUND = pointAt(MOUND_DISTANCE_FT, 0);
-export const MOUND_RADIUS = 9 * INFIELD_SCALE; // 9 ft radius
-export const RUBBER = { width: 20, height: 6 };
 
-/** Bases are drawn oversized — a true 15 in bag would be ~4 units across. */
-export const BASE_SIZE = 26;
-export const HOME_PLATE_SIZE = 28;
-export const HOME_CIRCLE_RADIUS = 13 * INFIELD_SCALE; // 26 ft diameter
+/** Both arcs are circles about the mound, sized off the reference. */
+export const FENCE_RADIUS = 460;
+export const INFIELD_ARC_RADIUS = 232;
 
-export const FOUL_POLES = {
-  left: pointAt(FOUL_LINE_FT, -FOUL_ANGLE),
-  right: pointAt(FOUL_LINE_FT, FOUL_ANGLE),
-} as const;
+export const MOUND_RADIUS = { x: 24, y: 24 * VERTICAL_SQUASH };
+export const HOME_CIRCLE_RADIUS = { x: 34, y: 34 * VERTICAL_SQUASH };
+export const RUBBER = { width: 17, height: 5 };
 
-/** Real fence distances, sampled by angle and mirrored across center field. */
-const FENCE_PROFILE_FT: ReadonlyArray<readonly [angle: number, feet: number]> = [
-  [0, 400],
-  [11.25, 395],
-  [22.5, 378],
-  [33.75, 353],
-  [45, FOUL_LINE_FT],
-];
+/** Bases are drawn oversized — a true 15 inch bag would be four units across. */
+export const BASE_SIZE = 13;
+export const HOME_PLATE_SIZE = 20;
 
-export function fenceDistanceFt(angleDeg: number): number {
-  const a = Math.min(Math.abs(angleDeg), FOUL_ANGLE);
-  for (let i = 0; i < FENCE_PROFILE_FT.length - 1; i++) {
-    const [a0, f0] = FENCE_PROFILE_FT[i];
-    const [a1, f1] = FENCE_PROFILE_FT[i + 1];
-    if (a <= a1) return f0 + ((f1 - f0) * (a - a0)) / (a1 - a0);
-  }
-  return FOUL_LINE_FT;
-}
-
-function fencePoints(stepDeg = 2.5): Point[] {
-  const points: Point[] = [];
-  for (let a = -FOUL_ANGLE; a <= FOUL_ANGLE + 1e-9; a += stepDeg) {
-    points.push(pointAt(fenceDistanceFt(a), a));
-  }
-  return points;
-}
-
-/** Open arc, foul pole to foul pole. */
-export const OUTFIELD_ARC_PATH = smoothPath(fencePoints());
-
-/** The grass area: fence arc closed back through home plate. */
-export const FAIR_TERRITORY_PATH = `${OUTFIELD_ARC_PATH} L ${HOME.x} ${HOME.y} Z`;
-
-// --- Infield dirt ---------------------------------------------------------
-
-/** Real infield arc: 95 ft radius swung from the middle of the mound. */
-export const INFIELD_ARC_RADIUS = 95 * INFIELD_SCALE;
+/** Unit direction of the first-base foul line, in the squashed space. */
+const FOUL_DIR = (() => {
+  const a = (FOUL_ANGLE * Math.PI) / 180;
+  const x = Math.sin(a);
+  const y = -VERTICAL_SQUASH * Math.cos(a);
+  const len = Math.hypot(x, y);
+  return { x: x / len, y: y / len };
+})();
 
 /**
- * Distance from home, along a foul line, to where the infield arc crosses it.
- * Solved rather than eyeballed so the dirt shell always meets the lines cleanly.
+ * How far along a foul line, from home, it crosses a circle centered on the
+ * mound. Solved rather than eyeballed, so the lines always meet the arcs
+ * cleanly whatever the radii are tuned to.
  */
-function foulLineArcIntersectionUnits(): number {
-  // Along the foul line P(t) = HOME + t * dir, solve |P(t) - MOUND| = radius.
-  const dy = HOME.y - MOUND.y; // MOUND sits straight up the center line
-  const b = -dy * Math.cos((FOUL_ANGLE * Math.PI) / 180);
-  const c = dy * dy - INFIELD_ARC_RADIUS * INFIELD_ARC_RADIUS;
-  return -b + Math.sqrt(b * b - c);
+function foulLineHit(radius: number): number {
+  const oy = HOME.y - MOUND.y; // home relative to the mound; both share an x
+  const b = FOUL_DIR.y * oy;
+  return -b + Math.sqrt(b * b - (oy * oy - radius * radius));
 }
 
-const ARC_T = foulLineArcIntersectionUnits();
-const ARC_RIGHT: Point = {
-  x: HOME.x + ARC_T * Math.sin((FOUL_ANGLE * Math.PI) / 180),
-  y: HOME.y - ARC_T * Math.cos((FOUL_ANGLE * Math.PI) / 180),
-};
-const ARC_LEFT: Point = { x: HOME.x - (ARC_RIGHT.x - HOME.x), y: ARC_RIGHT.y };
+function alongFoulLine(distance: number, side: 1 | -1): Point {
+  return {
+    x: HOME.x + side * distance * FOUL_DIR.x,
+    y: HOME.y + distance * FOUL_DIR.y,
+  };
+}
 
-/** The classic infield "shell": foul line, arc across the top, foul line, home. */
+export const FOUL_POLES = {
+  left: alongFoulLine(foulLineHit(FENCE_RADIUS), -1),
+  right: alongFoulLine(foulLineHit(FENCE_RADIUS), 1),
+} as const;
+
+const INFIELD_CORNERS = {
+  left: alongFoulLine(foulLineHit(INFIELD_ARC_RADIUS), -1),
+  right: alongFoulLine(foulLineHit(INFIELD_ARC_RADIUS), 1),
+} as const;
+
+/** Fence arc, foul pole to foul pole, drawn over the top. */
+export const OUTFIELD_ARC_PATH = `${moveTo(FOUL_POLES.left)} ${arcTo(FOUL_POLES.right, FENCE_RADIUS)}`;
+
+/** Everything inside the fence: the arc closed back through home plate. */
+export const FAIR_TERRITORY_PATH = `${OUTFIELD_ARC_PATH} L ${r(HOME.x)} ${r(HOME.y)} Z`;
+
+/** The classic infield shell: up one foul line, across the arc, back to home. */
 export const INFIELD_DIRT_PATH = [
-  `M ${HOME.x} ${HOME.y}`,
-  `L ${r(ARC_RIGHT.x)} ${r(ARC_RIGHT.y)}`,
-  `A ${r(INFIELD_ARC_RADIUS)} ${r(INFIELD_ARC_RADIUS)} 0 0 0 ${r(ARC_LEFT.x)} ${r(ARC_LEFT.y)}`,
+  moveTo(HOME),
+  `L ${r(INFIELD_CORNERS.right.x)} ${r(INFIELD_CORNERS.right.y)}`,
+  arcTo(INFIELD_CORNERS.left, INFIELD_ARC_RADIUS, 0),
   'Z',
 ].join(' ');
 
-/** Infield grass diamond, inset 9 ft inside the base paths. */
+/** The white line along the top of the dirt. */
+export const INFIELD_ARC_PATH = `${moveTo(INFIELD_CORNERS.left)} ${arcTo(
+  INFIELD_CORNERS.right,
+  INFIELD_ARC_RADIUS,
+)}`;
+
+/** Infield grass, inset from the base paths so the paths read as dirt. */
+export const BASE_PATH_INSET_FT = 9;
 export const INFIELD_GRASS_PATH = (() => {
   const center = pointAt((BASE_PATH_FT * Math.SQRT2) / 2, 0);
-  const inset = 1 - 9 / (BASE_PATH_FT / 2); // apothem 45 ft -> 36 ft
+  const scale = 1 - BASE_PATH_INSET_FT / (BASE_PATH_FT / 2); // apothem 45 ft
   const corners = [BASES.home, BASES.first, BASES.second, BASES.third].map((p) => ({
-    x: center.x + (p.x - center.x) * inset,
-    y: center.y + (p.y - center.y) * inset,
+    x: center.x + (p.x - center.x) * scale,
+    y: center.y + (p.y - center.y) * scale,
   }));
   return `M ${corners.map((p) => `${r(p.x)} ${r(p.y)}`).join(' L ')} Z`;
 })();
@@ -168,17 +164,17 @@ export interface FielderSpot {
   angle: number;
 }
 
-/** Standard-depth positioning, in real feet and real bearings. */
+/** Depths and bearings read off the reference diagram. */
 export const FIELDER_SPOTS: readonly FielderSpot[] = [
-  { label: 'P', feet: 58, angle: 0 },
-  { label: 'C', feet: 13, angle: 180 },
-  { label: '1B', feet: 105, angle: 38 },
-  { label: '2B', feet: 140, angle: 18 },
-  { label: 'SS', feet: 140, angle: -18 },
-  { label: '3B', feet: 100, angle: -38 },
-  { label: 'LF', feet: 270, angle: -30 },
-  { label: 'CF', feet: 300, angle: 0 },
-  { label: 'RF', feet: 270, angle: 30 },
+  { label: 'P', feet: MOUND_DISTANCE_FT, angle: 0 },
+  { label: 'C', feet: 25, angle: 180 },
+  { label: '1B', feet: 114, angle: 39 },
+  { label: '2B', feet: 168, angle: 14 },
+  { label: 'SS', feet: 169, angle: -15.5 },
+  { label: '3B', feet: 104, angle: -37 },
+  { label: 'LF', feet: 298, angle: -24.6 },
+  { label: 'CF', feet: 363, angle: 0 },
+  { label: 'RF', feet: 298, angle: 24.6 },
 ];
 
 export function defaultFielderPosition(spot: FielderSpot): Point {
@@ -187,13 +183,15 @@ export function defaultFielderPosition(spot: FielderSpot): Point {
 
 // --- Tokens ---------------------------------------------------------------
 
-export const TOKEN_RADIUS = 24;
-export const BALL_RADIUS = 11;
+export const TOKEN_RADIUS = 30;
+export const RUNNER_RADIUS = 12;
+export const BALL_RADIUS = 12;
+
 /**
  * Invisible hit area, in viewBox units. At iPad-portrait scale one unit is
- * roughly 0.75 CSS px, so 34 units clears the 44 px minimum touch target.
+ * roughly 0.8 CSS px, so 38 units clears the 44 px minimum touch target.
  */
-export const TOKEN_HIT_RADIUS = 34;
+export const TOKEN_HIT_RADIUS = 38;
 
 /** The touch target we owe every token, in CSS pixels. */
 export const MIN_TOUCH_TARGET_PX = 44;
@@ -215,6 +213,18 @@ export function clampToField(p: Point): Point {
     x: Math.min(Math.max(p.x, m), VIEW_BOX.width - m),
     y: Math.min(Math.max(p.y, m), VIEW_BOX.height - m),
   };
+}
+
+function moveTo(p: Point): string {
+  return `M ${r(p.x)} ${r(p.y)}`;
+}
+
+/**
+ * An SVG arc to a point on a circle of the given radius. `sweep` 1 goes
+ * clockwise on screen — over the top, for a point on each side of the mound.
+ */
+function arcTo(to: Point, radius: number, sweep: 0 | 1 = 1): string {
+  return `A ${radius} ${radius} 0 0 ${sweep} ${r(to.x)} ${r(to.y)}`;
 }
 
 function r(n: number): number {

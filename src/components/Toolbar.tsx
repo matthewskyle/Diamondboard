@@ -1,92 +1,46 @@
 import type { Tool } from '../model/types';
+import { BallIcon, EraseIcon, PenIcon, RunnerIcon, SelectIcon, UndoIcon } from './ToolIcons';
 
 interface Props {
   tool: Tool;
   onToolChange: (tool: Tool) => void;
   onUndo: () => void;
-  onReset: () => void;
   canUndo: boolean;
-  onSetStart: () => void;
-  onSetEnd: () => void;
-  onPlay: () => void;
-  onToStart: () => void;
-  hasStart: boolean;
-  hasEnd: boolean;
-  isPlaying: boolean;
 }
 
-const TOOLS: ReadonlyArray<{ tool: Tool; label: string; text: string }> = [
-  { tool: 'select', label: 'Select and move', text: 'Move' },
-  { tool: 'addRunner', label: 'Add runner', text: 'Runner' },
-  { tool: 'addBall', label: 'Place ball', text: 'Ball' },
-  { tool: 'pen', label: 'Draw', text: 'Draw' },
-  { tool: 'erase', label: 'Erase', text: 'Erase' },
+const TOOLS: ReadonlyArray<{ tool: Tool; label: string; Icon: () => React.ReactElement }> = [
+  { tool: 'select', label: 'Select and move', Icon: SelectIcon },
+  { tool: 'addRunner', label: 'Add runner', Icon: RunnerIcon },
+  { tool: 'addBall', label: 'Place ball', Icon: BallIcon },
+  { tool: 'pen', label: 'Draw', Icon: PenIcon },
+  { tool: 'erase', label: 'Erase', Icon: EraseIcon },
 ];
 
-export function Toolbar({
-  tool,
-  onToolChange,
-  onUndo,
-  onReset,
-  canUndo,
-  onSetStart,
-  onSetEnd,
-  onPlay,
-  onToStart,
-  hasStart,
-  hasEnd,
-  isPlaying,
-}: Props) {
+/** The bottom bar: one row of icon tools, thumb-reachable on an iPad. */
+export function Toolbar({ tool, onToolChange, onUndo, canUndo }: Props) {
   return (
-    <div className="toolbar">
-      <div className="tool-group" role="group" aria-label="Tools">
-        {TOOLS.map(({ tool: t, label, text }) => (
-          <button
-            key={t}
-            type="button"
-            className="tool-button"
-            aria-label={label}
-            aria-pressed={tool === t}
-            onClick={() => onToolChange(t)}
-          >
-            {text}
-          </button>
-        ))}
-      </div>
-
-      <div className="tool-group" role="group" aria-label="Edit">
-        <button type="button" className="tool-button" onClick={onUndo} disabled={!canUndo}>
-          Undo
-        </button>
-        <button type="button" className="tool-button" onClick={onReset}>
-          Reset
-        </button>
-      </div>
-
-      <div className="tool-group" role="group" aria-label="Animation">
-        <button type="button" className="tool-button" onClick={onSetStart} disabled={isPlaying}>
-          Set start{hasStart ? ' ✓' : ''}
-        </button>
-        <button type="button" className="tool-button" onClick={onSetEnd} disabled={isPlaying}>
-          Set end{hasEnd ? ' ✓' : ''}
-        </button>
+    <div className="toolbar" role="toolbar" aria-label="Tools">
+      {TOOLS.map(({ tool: t, label, Icon }) => (
         <button
-          type="button"
-          className="tool-button tool-button-primary"
-          onClick={onPlay}
-          disabled={!hasStart || !hasEnd || isPlaying}
-        >
-          ▶ Play
-        </button>
-        <button
+          key={t}
           type="button"
           className="tool-button"
-          onClick={onToStart}
-          disabled={!hasStart || isPlaying}
+          aria-label={label}
+          aria-pressed={tool === t}
+          onClick={() => onToolChange(t)}
         >
-          ⏮ To start
+          <Icon />
         </button>
-      </div>
+      ))}
+      <button
+        type="button"
+        className="tool-button"
+        aria-label="Undo"
+        onClick={onUndo}
+        disabled={!canUndo}
+      >
+        <UndoIcon />
+      </button>
     </div>
   );
 }

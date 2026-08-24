@@ -5,14 +5,19 @@ import {
   HOME,
   INFIELD_SCALE,
   MOUND,
+  VERTICAL_SQUASH,
   VIEW_BOX,
   feetToUnits,
-  fenceDistanceFt,
   pointAt,
   clampToField,
   FIELDER_SPOTS,
+  FOUL_ANGLE,
   defaultFielderPosition,
+  TOKEN_RADIUS,
 } from '../fieldGeometry';
+
+/** How far up the field a point sits, undoing the squash: real radial units. */
+const depth = (y: number) => (HOME.y - y) / VERTICAL_SQUASH;
 
 describe('radial scale', () => {
   it('is true to scale inside the infield', () => {
@@ -30,39 +35,70 @@ describe('radial scale', () => {
   });
 });
 
+describe('the squashed projection', () => {
+  it('flattens the field vertically without touching its width', () => {
+    const p = pointAt(100, 0);
+    expect(p.x).toBe(HOME.x);
+    expect(HOME.y - p.y).toBeCloseTo(VERTICAL_SQUASH * feetToUnits(100));
+    expect(pointAt(100, 90).x - HOME.x).toBeCloseTo(feetToUnits(100));
+  });
+
+  it('gives the foul lines the reference slope, not a true 45 degrees', () => {
+    const { first } = BASES;
+    const slope = (HOME.y - first.y) / (first.x - HOME.x);
+    expect(slope).toBeCloseTo(VERTICAL_SQUASH);
+    expect(slope).toBeLessThan(1);
+  });
+
+  it('keeps both bases and both foul poles on the same lines', () => {
+    for (const [base, pole] of [
+      [BASES.first, FOUL_POLES.right],
+      [BASES.third, FOUL_POLES.left],
+    ]) {
+      const baseSlope = (HOME.y - base.y) / (base.x - HOME.x);
+      const poleSlope = (HOME.y - pole.y) / (pole.x - HOME.x);
+      expect(baseSlope).toBeCloseTo(poleSlope);
+    }
+  });
+});
+
 describe('diamond', () => {
-  it('keeps a square, 90-degree diamond', () => {
-    const first = BASES.first;
-    const third = BASES.third;
-    expect(first.y).toBeCloseTo(third.y);
-    expect(first.x - HOME.x).toBeCloseTo(HOME.x - third.x);
-    // Home to first equals first to second: a real diamond, not a stretched one.
-    const homeToFirst = Math.hypot(first.x - HOME.x, first.y - HOME.y);
-    const firstToSecond = Math.hypot(BASES.second.x - first.x, BASES.second.y - first.y);
-    expect(homeToFirst).toBeCloseTo(firstToSecond);
+  it('is symmetric about the center line', () => {
+    expect(BASES.first.y).toBeCloseTo(BASES.third.y);
+    expect(BASES.first.x - HOME.x).toBeCloseTo(HOME.x - BASES.third.x);
+    expect(FOUL_POLES.right.x - HOME.x).toBeCloseTo(HOME.x - FOUL_POLES.left.x);
+    expect(FOUL_POLES.left.y).toBeCloseTo(FOUL_POLES.right.y);
   });
 
   it('puts second base and the mound on the center line', () => {
     expect(BASES.second.x).toBeCloseTo(HOME.x);
     expect(MOUND.x).toBeCloseTo(HOME.x);
-    expect(MOUND.y).toBeGreaterThan(BASES.second.y); // mound is nearer home
+    expect(MOUND.y).toBeGreaterThan(BASES.second.y); // the mound is nearer home
+  });
+
+  it('keeps real base-path proportions underneath the squash', () => {
+    // Undo the projection and home-to-first should be a real 90 ft again.
+    const { first } = BASES;
+    const radial = Math.hypot(first.x - HOME.x, depth(first.y));
+    expect(radial / INFIELD_SCALE).toBeCloseTo(90);
+    expect(Math.hypot(0, depth(BASES.second.y)) / INFIELD_SCALE).toBeCloseTo(90 * Math.SQRT2);
   });
 });
 
-describe('fence', () => {
-  it('is deepest to center and shortest down the lines', () => {
-    expect(fenceDistanceFt(0)).toBeGreaterThan(fenceDistanceFt(22.5));
-    expect(fenceDistanceFt(22.5)).toBeGreaterThan(fenceDistanceFt(45));
-    expect(fenceDistanceFt(-45)).toBeCloseTo(fenceDistanceFt(45));
-    expect(fenceDistanceFt(80)).toBeCloseTo(fenceDistanceFt(45));
-  });
-
+describe('the fence', () => {
   it('keeps both foul poles inside the viewBox', () => {
     for (const pole of [FOUL_POLES.left, FOUL_POLES.right]) {
       expect(pole.x).toBeGreaterThanOrEqual(0);
       expect(pole.x).toBeLessThanOrEqual(VIEW_BOX.width);
       expect(pole.y).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('is deeper to center than down the lines', () => {
+    // The arc is a circle about the mound, so center field is the far point.
+    const poleDepth = depth(FOUL_POLES.right.y);
+    const centerDepth = depth(MOUND.y) + 460 / VERTICAL_SQUASH;
+    expect(centerDepth).toBeGreaterThan(poleDepth);
   });
 });
 
@@ -76,31 +112,39 @@ describe('default arrangement', () => {
       expect(p.y).toBeGreaterThan(0);
       expect(p.y).toBeLessThan(VIEW_BOX.height);
       if (spot.label !== 'C') {
-        // Inside the 90-degree wedge: |x offset| <= distance up the field.
-        expect(Math.abs(p.x - HOME.x)).toBeLessThanOrEqual(HOME.y - p.y + 1e-6);
+        expect(Math.abs(spot.angle)).toBeLessThanOrEqual(FOUL_ANGLE);
+        // Inside the wedge once the squash is undone.
+        expect(Math.abs(p.x - HOME.x)).toBeLessThanOrEqual(depth(p.y) + 1e-6);
       }
     }
   });
 
-  it('puts the catcher behind the plate', () => {
-    const catcher = defaultFielderPosition(FIELDER_SPOTS.find((s) => s.label === 'C')!);
-    expect(catcher.y).toBeGreaterThan(HOME.y);
+  it('puts the catcher behind the plate and the pitcher on the mound', () => {
+    const spot = (label: string) => FIELDER_SPOTS.find((s) => s.label === label)!;
+    expect(defaultFielderPosition(spot('C')).y).toBeGreaterThan(HOME.y);
+    expect(defaultFielderPosition(spot('P'))).toEqual(MOUND);
   });
 
   it('places outfielders beyond the infielders', () => {
-    const depth = (label: string) =>
-      HOME.y - defaultFielderPosition(FIELDER_SPOTS.find((s) => s.label === label)!).y;
-    expect(depth('CF')).toBeGreaterThan(depth('2B'));
-    expect(depth('LF')).toBeGreaterThan(depth('SS'));
+    const at = (label: string) => defaultFielderPosition(FIELDER_SPOTS.find((s) => s.label === label)!);
+    expect(depth(at('CF').y)).toBeGreaterThan(depth(at('2B').y));
+    expect(depth(at('LF').y)).toBeGreaterThan(depth(at('SS').y));
+  });
+
+  it('mirrors the corner outfielders', () => {
+    const lf = defaultFielderPosition(FIELDER_SPOTS.find((s) => s.label === 'LF')!);
+    const rf = defaultFielderPosition(FIELDER_SPOTS.find((s) => s.label === 'RF')!);
+    expect(lf.y).toBeCloseTo(rf.y);
+    expect(HOME.x - lf.x).toBeCloseTo(rf.x - HOME.x);
   });
 });
 
 describe('clampToField', () => {
   it('keeps tokens on the board', () => {
-    expect(clampToField({ x: -50, y: -50 })).toEqual({ x: 24, y: 24 });
+    expect(clampToField({ x: -50, y: -50 })).toEqual({ x: TOKEN_RADIUS, y: TOKEN_RADIUS });
     expect(clampToField({ x: 5000, y: 5000 })).toEqual({
-      x: VIEW_BOX.width - 24,
-      y: VIEW_BOX.height - 24,
+      x: VIEW_BOX.width - TOKEN_RADIUS,
+      y: VIEW_BOX.height - TOKEN_RADIUS,
     });
     expect(clampToField(pointAt(90, 45))).toEqual(BASES.first);
   });

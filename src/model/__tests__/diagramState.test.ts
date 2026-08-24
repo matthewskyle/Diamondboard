@@ -38,25 +38,24 @@ describe('moving tokens', () => {
 });
 
 describe('runners', () => {
-  it('adds runners with sequential labels', () => {
+  it('adds unlabeled runners at the tapped point', () => {
     const s = run(initialState(), { type: 'addRunner', ...at(10, 10) }, {
       type: 'addRunner',
       ...at(20, 20),
     });
-    expect(s.tokens.filter((t) => t.type === 'runner').map((t) => t.label)).toEqual(['R1', 'R2']);
+    const runners = s.tokens.filter((t) => t.type === 'runner');
+    expect(runners).toHaveLength(2);
+    expect(runners.map((t) => t.label)).toEqual([undefined, undefined]);
+    expect(runners[1]).toMatchObject({ x: 20, y: 20 });
   });
 
-  it('reuses the lowest free number after a delete', () => {
-    let s = run(initialState(), { type: 'addRunner', ...at(10, 10) }, {
+  it('gives every runner a distinct id', () => {
+    const s = run(initialState(), { type: 'addRunner', ...at(10, 10) }, {
       type: 'addRunner',
       ...at(20, 20),
     });
-    const r1 = s.tokens.find((t) => t.label === 'R1')!;
-    s = run(s, { type: 'removeToken', id: r1.id }, { type: 'addRunner', ...at(30, 30) });
-    expect(s.tokens.filter((t) => t.type === 'runner').map((t) => t.label).sort()).toEqual([
-      'R1',
-      'R2',
-    ]);
+    const ids = s.tokens.filter((t) => t.type === 'runner').map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('restores a deleted runner in place on undo', () => {
