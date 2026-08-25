@@ -5,6 +5,7 @@ import { assignDefense } from './defense';
 import { capturePositions, defaultTokens, nextId } from './diagramState';
 import { MORE_PLAYS } from './morePlays';
 import type { BaseName, PlayDef, Spot } from './playTypes';
+import { feetOf } from './spots';
 import type { PositionMap, Token } from './types';
 
 /**
@@ -22,7 +23,7 @@ import type { PositionMap, Token } from './types';
 export type { BaseName, PlayDef, Spot } from './playTypes';
 
 /** Beside the plate on the first base side, clear of the ball, ready to run. */
-const BATTERS_BOX: Spot = { at: [13, 45] };
+export const BATTERS_BOX: Spot = { at: [13, 45] };
 
 const BASE_POINTS: Record<string, Point> = {
   home: BASES.home,
@@ -73,17 +74,17 @@ export function compilePlay(def: PlayDef): CompiledPlay {
     // it: he had a lead, and the play is him getting back. A runner who is
     // going somewhere had one too — nobody breaks from a standstill on the bag.
     const diveBack = sameBase(runner.from, runner.to);
-    const start = startOf(runner, diveBack);
-    const from = start ? leadOff(start) : resolve(runner.from, fielderEnds);
-    const to = runner.to ? resolve(runner.to, fielderEnds) : from;
-    const token: Token = { id: nextId('runner'), type: 'runner', x: from.x, y: from.y };
+    const bag = startOf(runner, diveBack);
+    const from = bag ? leadOff(bag) : feetOf(runner.from)!;
+    const to = runner.to ? feetOf(runner.to)! : from;
+    // The route decides where he starts and finishes, rather than the other way
+    // round, so the two can never disagree about where the bag is.
+    const route = runnerRoute(from, to, runner.to && !diveBack ? basesBetween(from, to) : []);
+    const start = route[0];
+    const token: Token = { id: nextId('runner'), type: 'runner', x: start.x, y: start.y };
     tokens.push(token);
-    runnerEnds[token.id] = to;
-    runnerRoutes[token.id] = runnerRoute(
-      from,
-      to,
-      runner.to && !diveBack ? basesBetween(runner.from, runner.to) : [],
-    );
+    runnerEnds[token.id] = route[route.length - 1];
+    runnerRoutes[token.id] = route;
   }
 
   const ballRoute = def.ball.map((spot) => resolve(spot, fielderEnds));
