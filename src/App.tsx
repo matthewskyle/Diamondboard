@@ -2,6 +2,7 @@ import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
 import { PlayControls, type RecordState } from './components/PlayControls';
 import { PlayLibrary } from './components/PlayLibrary';
+import { PlayRoleList } from './components/PlayRoleList';
 import { Toolbar } from './components/Toolbar';
 import {
   diagramReducer,
@@ -164,6 +165,7 @@ export default function App() {
               <span>
                 {position ? roleFor(loadedPlay, position).text : loadedPlay.teaches}
               </span>
+              <PlayRoleList play={loadedPlay} highlight={position} />
             </div>
           )}
           <PlayControls

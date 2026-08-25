@@ -121,12 +121,17 @@ prev/next in the dock to walk through them. The shortstop has a job in 28 of the
 50; the right fielder in 5.
 
 **Most of the wording is derived, not written.** If the ball comes to you, the
-play already knows where it goes next, so "field it and throw to first base"
-falls out of the data — and stays correct if the play is ever edited. Covering a
-base is the same. What cannot be derived is the rest of the job: charging,
-backing up, giving way. Those are written into the play itself, because
-inventing them would put words in a coach's mouth. A test asserts no play and
-position combination is left on the generic fallback.
+play already knows where it goes next, so "field it and throw to first base —
+get the out at first" falls out of the data — and stays correct if the play is
+ever edited. Covering a base is the same. Supporting positions get a real
+backup or hold job with a reason, not a blank "no job." What cannot be derived
+is the rest of the primary job: charging, backing up, giving way. Those are
+written into the play itself, because inventing them would put words in a
+coach's mouth. A test asserts no play and position combination is left on the
+generic fallback, and that every position's text explains what and why.
+
+When a play is loaded, the dock shows all nine positions so a coach can walk
+the whole defense, not just the player with the ball.
 
 The list is grouped by category and the stepper follows that same order, so
 "4 of 28" is the fourth play a coach can actually see.
