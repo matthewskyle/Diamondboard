@@ -3,9 +3,9 @@ import { compilePlay, PLAYS, PLAY_CATEGORIES } from '../plays';
 import { BASES, HOME, VIEW_BOX, MIN_VIEW_HEIGHT, TOKEN_RADIUS } from '../fieldGeometry';
 
 describe('the play library', () => {
-  it('has 50 plays with unique ids', () => {
-    expect(PLAYS).toHaveLength(50);
-    expect(new Set(PLAYS.map((p) => p.id)).size).toBe(50);
+  it('has 150 plays with unique ids', () => {
+    expect(PLAYS).toHaveLength(150);
+    expect(new Set(PLAYS.map((p) => p.id)).size).toBe(150);
   });
 
   it('describes every play for a coach', () => {
@@ -89,7 +89,13 @@ describe('compilePlay', () => {
       // A batted ball is one whose route starts at the plate. The exceptions
       // are balls the catcher already has, which never leave a bat.
       const startsAtThePlate = 'base' in play.ball[0] && play.ball[0].base === 'home';
-      const catcherHasIt = ['rundown-third-home', 'delayed-steal'].includes(play.id);
+      const catcherHasIt = [
+        'rundown-third-home',
+        'delayed-steal',
+        'delayed-double-steal',
+        '2-5-pick',
+        '2-4-backpick',
+      ].includes(play.id);
       if (!startsAtThePlate || catcherHasIt) continue;
       expect(play.batterTo, `${play.id} has nobody batting`).toBeDefined();
     }

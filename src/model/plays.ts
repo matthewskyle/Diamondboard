@@ -1,6 +1,7 @@
 import { BASES, MOUND, defaultFielderPosition, FIELDER_SPOTS, pointAt } from './fieldGeometry';
 import type { Point } from './path';
 import { capturePositions, defaultTokens, nextId } from './diagramState';
+import { MORE_PLAYS } from './morePlays';
 import type { PositionMap, Token } from './types';
 
 /**
@@ -814,6 +815,7 @@ export const PLAYS: readonly PlayDef[] = [
     moves: { SS: { base: 'second' }, '3B': { base: 'third' } },
     ball: [{ base: 'mound' }, { base: 'home' }, { base: 'mound' }],
   },
+  ...MORE_PLAYS,
 ];
 
 export const PLAY_CATEGORIES = [...new Set(PLAYS.map((p) => p.category))];
