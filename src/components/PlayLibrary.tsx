@@ -1,5 +1,11 @@
 import { PLAYS, PLAY_CATEGORIES, type PlayDef } from '../model/plays';
-import { POSITIONS, POSITION_NAMES, playsForPosition, roleFor } from '../model/roles';
+import {
+  POSITIONS,
+  POSITION_NAMES,
+  POSITION_PLAY_LIMIT,
+  playsForPosition,
+  roleFor,
+} from '../model/roles';
 
 interface Props {
   open: boolean;
@@ -65,7 +71,8 @@ export function PlayLibrary({
 
         {position && (
           <p className="position-summary">
-            {POSITION_NAMES[position]} has a job in {shown.length} of {PLAYS.length} plays.
+            {POSITION_NAMES[position]} studies the top {Math.min(POSITION_PLAY_LIMIT, shown.length)} plays
+            from a library of {PLAYS.length}.
           </p>
         )}
 
