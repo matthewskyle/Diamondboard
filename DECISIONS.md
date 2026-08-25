@@ -93,7 +93,7 @@ the white lines do all the shape work — plus the near-black button fill
   ball holds at every intermediate stop — 12% of the playback each, capped at
   45% in total so a long relay stays mostly movement. Fielders keep moving
   through the pause: the ball is what is being caught.
-- **A library of 25 set plays.** SPEC.md §1 ruled template plays out of Phase 1;
+- **A library of 50 set plays.** SPEC.md §1 ruled template plays out of Phase 1;
   that is superseded. Each is written in real feet and bearings — who moves
   where, and where the ball goes — and compiled into the same arrangement and
   route the board already animates, so a library play is not a special case at

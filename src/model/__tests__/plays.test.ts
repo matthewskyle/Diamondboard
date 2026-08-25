@@ -3,9 +3,9 @@ import { compilePlay, PLAYS, PLAY_CATEGORIES } from '../plays';
 import { VIEW_BOX, MIN_VIEW_HEIGHT, TOKEN_RADIUS } from '../fieldGeometry';
 
 describe('the play library', () => {
-  it('has 25 plays with unique ids', () => {
-    expect(PLAYS).toHaveLength(25);
-    expect(new Set(PLAYS.map((p) => p.id)).size).toBe(25);
+  it('has 50 plays with unique ids', () => {
+    expect(PLAYS).toHaveLength(50);
+    expect(new Set(PLAYS.map((p) => p.id)).size).toBe(50);
   });
 
   it('describes every play for a coach', () => {
@@ -81,6 +81,28 @@ describe('compilePlay', () => {
         (id) => start[id].x !== end[id].x || start[id].y !== end[id].y,
       );
       expect(moved, `${play.id} has nothing happening`).toBe(true);
+    }
+  });
+
+  it('gives the ball real distance to cover, even when it comes back home', () => {
+    // A throw home ends where it began, so comparing the ball's first and last
+    // position says nothing: the route's length is what makes it a play.
+    for (const play of PLAYS) {
+      const { ballRoute } = compilePlay(play);
+      let length = 0;
+      for (let i = 0; i < ballRoute.length - 1; i++) {
+        length += Math.hypot(
+          ballRoute[i + 1].x - ballRoute[i].x,
+          ballRoute[i + 1].y - ballRoute[i].y,
+        );
+      }
+      expect(length, `${play.id} route goes nowhere`).toBeGreaterThan(40);
+    }
+  });
+
+  it('covers every category with more than a single play', () => {
+    for (const category of PLAY_CATEGORIES) {
+      expect(PLAYS.filter((p) => p.category === category).length, category).toBeGreaterThan(1);
     }
   });
 
