@@ -1,0 +1,241 @@
+:root {
+  /* Sampled from the reference diagram. */
+  --grass: #2c483d;
+  --dirt: #a37946;
+  --chalk: #fdfcfd;
+  --runner: #c53229;
+  --ink: #131826;
+
+  --bar: #e9ebea;
+  --bar-ink: #3b423f;
+  --bar-active: #8b7fd4;
+  --pill: #131826;
+  --pill-ink: #f4f6f5;
+  --accent: #f2c14e;
+
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* Same green as the field, so the SVG's letterboxing is invisible. */
+  background: var(--grass);
+  color: var(--ink);
+  overscroll-behavior: none;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  /* Installed on a home screen the status bar overlays the page. */
+  padding-top: env(safe-area-inset-top);
+}
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.field-svg {
+  width: 100%;
+  height: 100%;
+  /* The field owns every gesture: no scrolling, pinch-zoom, or long-press menu. */
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  display: block;
+}
+
+/* --- Field ------------------------------------------------------------- */
+
+.fx-grass {
+  fill: var(--grass);
+}
+
+.fx-dirt {
+  fill: var(--dirt);
+}
+
+.fx-mound {
+  fill: var(--dirt);
+}
+
+.fx-line {
+  fill: none;
+  stroke: var(--chalk);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.fx-fence {
+  stroke-width: 4;
+}
+
+.fx-base {
+  fill: var(--chalk);
+}
+
+/* --- Strokes and tokens ------------------------------------------------ */
+
+.fx-stroke {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.token {
+  filter: drop-shadow(0 2px 3px rgb(0 0 0 / 0.4));
+}
+
+.tk-fielder {
+  fill: var(--chalk);
+}
+
+.tk-runner {
+  fill: var(--runner);
+}
+
+.tk-ball {
+  fill: #e8e6e2;
+  stroke: #9a938a;
+  stroke-width: 1.2;
+}
+
+.tk-seam {
+  fill: none;
+  stroke: #b4453c;
+  stroke-width: 1.4;
+}
+
+.tk-label {
+  fill: var(--ink);
+  font-size: 24px;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+/* --- Floating play controls -------------------------------------------- */
+
+.play-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 calc(0.7rem + env(safe-area-inset-right)) 0 calc(0.7rem + env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.play-controls > * {
+  pointer-events: auto;
+}
+
+.pill-group {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.pill {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: 0;
+  border-radius: 10px;
+  background: var(--pill);
+  color: var(--pill-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.pill-light {
+  background: var(--chalk);
+  color: var(--ink);
+}
+
+.pill-primary:not(:disabled) {
+  background: #2f6b4f;
+}
+
+.pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* --- Tool bar ----------------------------------------------------------- */
+
+.toolbar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
+  background: var(--bar);
+  border-top: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.tool-button {
+  display: grid;
+  place-items: center;
+  min-width: 52px;
+  min-height: 44px;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--bar-ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.tool-button:hover:not(:disabled) {
+  background: rgb(0 0 0 / 0.05);
+}
+
+/* Ordered after :hover, and matched with the same weight, so the active tool
+   stays obvious while the pointer is resting on another button. */
+.tool-button[aria-pressed='true']:not(:disabled) {
+  background: #fff;
+  border-color: var(--bar-active);
+  color: var(--ink);
+}
+
+.tool-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+@media (max-width: 480px) {
+  .play-controls {
+    left: 0.5rem;
+    bottom: 0.5rem;
+    gap: 0.3rem;
+  }
+
+  .pill {
+    padding: 0 0.6rem;
+    font-size: 0.8rem;
+  }
+}
