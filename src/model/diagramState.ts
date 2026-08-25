@@ -19,7 +19,14 @@ export function defaultTokens(): Token[] {
 }
 
 export function initialState(): DiagramState {
-  return { tokens: defaultTokens(), strokes: [], start: null, end: null, undoStack: [] };
+  return {
+    tokens: defaultTokens(),
+    strokes: [],
+    ballRoute: [],
+    start: null,
+    end: null,
+    undoStack: [],
+  };
 }
 
 export type DiagramAction =
@@ -29,12 +36,21 @@ export type DiagramAction =
   | { type: 'removeToken'; id: string }
   | { type: 'addStroke'; points: Point[] }
   | { type: 'removeStroke'; id: string }
+  | { type: 'addRouteLeg'; at: Point }
+  | { type: 'clearRoute' }
   /** Bulk position write used by the animation transport. Not undoable. */
   | { type: 'setPositions'; positions: PositionMap }
   | { type: 'captureStart' }
   | { type: 'captureEnd' }
   | { type: 'undo' }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  | {
+      type: 'loadPlay';
+      tokens: Token[];
+      ballRoute: Point[];
+      start: PositionMap;
+      end: PositionMap;
+    };
 
 export function diagramReducer(state: DiagramState, action: DiagramAction): DiagramState {
   switch (action.type) {
@@ -107,6 +123,25 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       );
     }
 
+    case 'addRouteLeg': {
+      // The first leg also anchors the route, at wherever the ball is standing.
+      const ball = state.tokens.find((t) => t.type === 'ball');
+      if (state.ballRoute.length === 0 && !ball) return state;
+      const route =
+        state.ballRoute.length === 0
+          ? [{ x: ball!.x, y: ball!.y }, action.at]
+          : [...state.ballRoute, action.at];
+      return push({ ...state, ballRoute: route }, {
+        kind: 'restoreRoute',
+        route: state.ballRoute,
+      });
+    }
+
+    case 'clearRoute': {
+      if (state.ballRoute.length === 0) return state;
+      return push({ ...state, ballRoute: [] }, { kind: 'restoreRoute', route: state.ballRoute });
+    }
+
     case 'setPositions':
       return {
         ...state,
@@ -128,6 +163,19 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
     case 'reset':
       return initialState();
 
+    case 'loadPlay':
+      // A library play arrives already recorded, so Play is live immediately.
+      // It replaces the board outright: undoing back into a previous play would
+      // leave a half-merged arrangement nobody asked for.
+      return {
+        tokens: action.tokens,
+        strokes: [],
+        ballRoute: action.ballRoute,
+        start: action.start,
+        end: action.end,
+        undoStack: [],
+      };
+
     default:
       return state;
   }
@@ -148,6 +196,28 @@ export function hasMovedFrom(
     const p = positions[t.id];
     return !p || Math.abs(p.x - t.x) > 0.01 || Math.abs(p.y - t.y) > 0.01;
   });
+}
+
+/**
+ * What pressing Play should show, given where the board stands.
+ *
+ * There is no separate "stop recording" step: Play ends the recording. If
+ * anything has moved since Record, that movement is the play, and the current
+ * arrangement becomes its end. If nothing has moved — the coach just rewound,
+ * say — the stored play is replayed instead of collapsing to a play in which
+ * nothing happens.
+ */
+export function resolvePlayback(
+  tokens: readonly Token[],
+  start: PositionMap | null,
+  storedEnd: PositionMap | null,
+): { from: PositionMap; to: PositionMap; captureEnd: boolean } | null {
+  if (!start) return null;
+  if (hasMovedFrom(tokens, start)) {
+    return { from: start, to: capturePositions(tokens), captureEnd: true };
+  }
+  if (storedEnd) return { from: start, to: storedEnd, captureEnd: false };
+  return null;
 }
 
 export function capturePositions(tokens: readonly Token[]): PositionMap {
@@ -183,6 +253,8 @@ function applyUndo(state: DiagramState): DiagramState {
       tokens.splice(entry.index, 0, entry.token);
       return { ...state, undoStack, tokens };
     }
+    case 'restoreRoute':
+      return { ...state, undoStack, ballRoute: entry.route };
     case 'removeStroke':
       return { ...state, undoStack, strokes: state.strokes.filter((s) => s.id !== entry.id) };
     case 'addStroke': {
