@@ -67,9 +67,31 @@ the white lines do all the shape work — plus the near-black button fill
   and that relocation undoes like any other move.
 - **A drag is one undo step.** Positions update live during the drag but commit
   once on release, so undo steps back a whole move rather than a frame of one.
-- **Captures aren't undoable.** "Set start" / "Set end" record a snapshot;
-  neither they nor the animation transport (Play, To start) push undo entries.
-  Undo is for editing the diagram, not for scrubbing the animation.
+- **Captures aren't undoable.** Record and Stop take a snapshot; neither they
+  nor the animation transport (Play, To start) push undo entries. Undo is for
+  editing the diagram, not for scrubbing the animation.
+- **Record and Play, with no separate stop.** Pressing Play ends the recording:
+  whatever moved since Record *is* the play. If nothing has moved — the coach
+  just rewound — the stored play replays rather than collapsing into a play
+  where nothing happens. Two buttons, because the old "Start" read as a
+  transport control, which is what made pressing it feel safe when it was
+  actually overwriting the recording. The record button carries the state:
+  Record, then Recording…, then Re-record.
+- **The ball travels its route, not a straight line.** Everything else tweens
+  from where it started to where it ended; a ball that did that could never show
+  a relay. Instead the coach taps out where the ball goes — each tap snapping to
+  the fielder or base under it — and the ball runs those legs at constant speed,
+  so a long throw takes longer than a short one. The route is a self-contained
+  polyline anchored where it was drawn, so it stays put when the ball moves and
+  doesn't trail backwards during playback. It renders whether or not anyone
+  presses Play, which is how a coach draws it on a whiteboard anyway.
+- **A library of 25 set plays.** SPEC.md §1 ruled template plays out of Phase 1;
+  that is superseded. Each is written in real feet and bearings — who moves
+  where, and where the ball goes — and compiled into the same arrangement and
+  route the board already animates, so a library play is not a special case at
+  playback. Loading one replaces the board and arrives already recorded, so Play
+  is live immediately; it clears the undo stack, since undoing back into a
+  previous play would leave a half-merged arrangement nobody asked for.
 - **Play always runs the captured start → end.** It snaps to the start on the
   first frame, so it replays identically no matter where the tokens sit when
   it's pressed.

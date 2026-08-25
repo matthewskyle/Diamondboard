@@ -7,11 +7,12 @@ import {
   viewBoxAttr,
   viewHeightFor,
 } from '../model/fieldGeometry';
-import { tokenAt, strokeAt } from '../model/hitTest';
+import { routeAt, snapToTarget, strokeAt, tokenAt } from '../model/hitTest';
 import type { Point } from '../model/path';
 import type { DiagramAction } from '../model/diagramState';
 import type { DiagramState, PositionMap, Tool } from '../model/types';
 import { FieldSurface } from './FieldSurface';
+import { BallRouteLayer } from './BallRouteLayer';
 import { StrokeLayer } from './StrokeLayer';
 import { TokenLayer } from './TokenLayer';
 
@@ -111,10 +112,27 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
       case 'addBall':
         dispatch({ type: 'addBall', at: clampToField(p, viewHeight) });
         return;
+      case 'ballRoute': {
+        const ball = state.tokens.find((t) => t.type === 'ball');
+        // Bootstrap: with no ball on the field, the first tap places it.
+        if (!ball) {
+          dispatch({ type: 'addBall', at: clampToField(p, viewHeight) });
+          return;
+        }
+        dispatch({
+          type: 'addRouteLeg',
+          at: snapToTarget(state.tokens, clampToField(p, viewHeight), hitRadiusForScale(currentScale())),
+        });
+        return;
+      }
       case 'erase': {
         const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
         if (token) {
           dispatch({ type: 'removeToken', id: token.id });
+          return;
+        }
+        if (routeAt(state.ballRoute, p)) {
+          dispatch({ type: 'clearRoute' });
           return;
         }
         const stroke = strokeAt(state.strokes, p);
@@ -165,6 +183,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   const overrides: PositionMap | null =
     animating ?? (drag ? { [drag.tokenId]: drag.at } : null);
 
+
   return (
     <svg
       ref={svgRef}
@@ -181,6 +200,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     >
       <FieldSurface />
       <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
+      <BallRouteLayer route={state.ballRoute} />
       <TokenLayer tokens={state.tokens} overrides={overrides} />
     </svg>
   );

@@ -34,6 +34,34 @@ export function interpolatePositions(
   return out;
 }
 
+/**
+ * A point a fraction of the way along a polyline, measured by distance rather
+ * than by leg, so the travel speed is constant across legs of different length.
+ */
+export function pointAlongPath(points: readonly Point[], t: number): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+  if (points.length === 1) return points[0];
+
+  const legs: number[] = [];
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const d = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+    legs.push(d);
+    total += d;
+  }
+  if (total === 0) return points[0];
+
+  let travelled = clamp01(t) * total;
+  for (let i = 0; i < legs.length; i++) {
+    if (travelled <= legs[i] || i === legs.length - 1) {
+      const along = legs[i] === 0 ? 1 : Math.min(travelled / legs[i], 1);
+      return lerpPoint(points[i], points[i + 1], along);
+    }
+    travelled -= legs[i];
+  }
+  return points[points.length - 1];
+}
+
 export function clamp01(t: number): number {
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }

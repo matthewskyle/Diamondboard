@@ -1,5 +1,13 @@
 import type { Tool } from '../model/types';
-import { BallIcon, EraseIcon, PenIcon, RunnerIcon, SelectIcon, UndoIcon } from './ToolIcons';
+import {
+  BallIcon,
+  EraseIcon,
+  PenIcon,
+  RouteIcon,
+  RunnerIcon,
+  SelectIcon,
+  UndoIcon,
+} from './ToolIcons';
 
 interface Props {
   tool: Tool;
@@ -12,6 +20,7 @@ const TOOLS: ReadonlyArray<{ tool: Tool; label: string; Icon: () => React.ReactE
   { tool: 'select', label: 'Select and move', Icon: SelectIcon },
   { tool: 'addRunner', label: 'Add runner', Icon: RunnerIcon },
   { tool: 'addBall', label: 'Place ball', Icon: BallIcon },
+  { tool: 'ballRoute', label: 'Draw where the ball goes', Icon: RouteIcon },
   { tool: 'pen', label: 'Draw', Icon: PenIcon },
   { tool: 'erase', label: 'Erase', Icon: EraseIcon },
 ];

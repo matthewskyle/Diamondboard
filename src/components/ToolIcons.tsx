@@ -69,3 +69,14 @@ export function EraseIcon() {
     </Icon>
   );
 }
+
+export function RouteIcon() {
+  return (
+    <Icon>
+      <path d="M4 18 L11 18" {...STROKE} strokeDasharray="3 3" />
+      <path d="M11 18 L18 7" {...STROKE} strokeDasharray="3 3" />
+      <path d="M14.4 6.2 L18.6 6 L18.4 10.2" {...STROKE} />
+      <circle cx="4" cy="18" r="2" fill="currentColor" />
+    </Icon>
+  );
+}

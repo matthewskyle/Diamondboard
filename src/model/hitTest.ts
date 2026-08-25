@@ -1,4 +1,4 @@
-import { TOKEN_HIT_RADIUS } from './fieldGeometry';
+import { BASES, TOKEN_HIT_RADIUS } from './fieldGeometry';
 import { distanceToSegmentSq, type Point } from './path';
 import type { Stroke, Token } from './types';
 
@@ -49,4 +49,41 @@ export function strokeAt(
     }
   }
   return null;
+}
+
+/**
+ * Where a route leg should actually land. A throw goes *to the shortstop* or
+ * *to second base*, not to a coordinate, so a tap near either snaps to it.
+ */
+export function snapToTarget(
+  tokens: readonly Token[],
+  p: Point,
+  radius = TOKEN_HIT_RADIUS,
+): Point {
+  const token = tokenAt(tokens, p, radius);
+  if (token) return { x: token.x, y: token.y };
+
+  let best: Point | null = null;
+  let bestDistSq = radius * radius;
+  for (const base of [BASES.home, BASES.first, BASES.second, BASES.third]) {
+    const distSq = (base.x - p.x) ** 2 + (base.y - p.y) ** 2;
+    if (distSq <= bestDistSq) {
+      best = base;
+      bestDistSq = distSq;
+    }
+  }
+  return best ?? p;
+}
+
+/** Is `p` on the ball's route? Used to erase it. */
+export function routeAt(
+  path: readonly Point[],
+  p: Point,
+  tolerance = STROKE_HIT_TOLERANCE,
+): boolean {
+  const limit = tolerance * tolerance;
+  for (let i = 0; i < path.length - 1; i++) {
+    if (distanceToSegmentSq(p, path[i], path[i + 1]) <= limit) return true;
+  }
+  return false;
 }

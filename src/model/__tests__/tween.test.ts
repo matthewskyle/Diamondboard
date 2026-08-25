@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { easeInOutCubic, interpolatePositions, lerpPoint } from '../tween';
+import { easeInOutCubic, interpolatePositions, lerpPoint, pointAlongPath } from '../tween';
 
 const start = { a: { x: 0, y: 0 }, b: { x: 10, y: 10 } };
 const end = { a: { x: 100, y: 200 }, b: { x: 10, y: 10 } };
@@ -53,5 +53,48 @@ describe('easeInOutCubic', () => {
 describe('lerpPoint', () => {
   it('interpolates both axes', () => {
     expect(lerpPoint({ x: 0, y: 0 }, { x: 8, y: 4 }, 0.25)).toEqual({ x: 2, y: 1 });
+  });
+});
+
+describe('pointAlongPath', () => {
+  const path = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 100, y: 300 },
+  ];
+
+  it('starts and ends on the path', () => {
+    expect(pointAlongPath(path, 0)).toEqual({ x: 0, y: 0 });
+    expect(pointAlongPath(path, 1)).toEqual({ x: 100, y: 300 });
+  });
+
+  it('moves at constant speed, so a long leg takes longer than a short one', () => {
+    // Total 400 units: the first leg is a quarter of it, so it ends at t=0.25.
+    expect(pointAlongPath(path, 0.25)).toEqual({ x: 100, y: 0 });
+    expect(pointAlongPath(path, 0.5)).toEqual({ x: 100, y: 100 });
+    expect(pointAlongPath(path, 0.75)).toEqual({ x: 100, y: 200 });
+  });
+
+  it('covers equal distance in equal time across a corner', () => {
+    const step = (a: number, b: number) => {
+      const p = pointAlongPath(path, a);
+      const q = pointAlongPath(path, b);
+      return Math.hypot(q.x - p.x, q.y - p.y);
+    };
+    // A step that straddles the corner is shorter only by the corner itself.
+    expect(step(0.1, 0.2)).toBeCloseTo(40);
+    expect(step(0.6, 0.7)).toBeCloseTo(40);
+  });
+
+  it('clamps outside [0,1]', () => {
+    expect(pointAlongPath(path, -3)).toEqual({ x: 0, y: 0 });
+    expect(pointAlongPath(path, 3)).toEqual({ x: 100, y: 300 });
+  });
+
+  it('survives degenerate paths', () => {
+    expect(pointAlongPath([], 0.5)).toEqual({ x: 0, y: 0 });
+    expect(pointAlongPath([{ x: 7, y: 9 }], 0.5)).toEqual({ x: 7, y: 9 });
+    const stationary = [{ x: 5, y: 5 }, { x: 5, y: 5 }];
+    expect(pointAlongPath(stationary, 0.5)).toEqual({ x: 5, y: 5 });
   });
 });

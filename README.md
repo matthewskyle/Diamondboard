@@ -43,12 +43,20 @@ to `main` — enable it once under Settings → Pages → Source: GitHub Actions
 | **Ball** | Tap to place the ball. Tapping again moves it — there's only one. |
 | **Draw** | Freehand over the field with a finger or an Apple Pencil. |
 | **Erase** | Tap a runner, the ball, or a drawing to remove it. Fielders stay. |
+| **Route** | Tap where the ball goes, stop by stop. |
 | **Undo** | Step back the last change — a move, an add, a delete, a stroke. |
 | **New play** | Clear runners, the ball and drawings, and send the fielders home. |
 
-To animate: arrange the players and press **Start**, move them where they should
-end up and press **End**, then **Play**. The rewind button puts everyone back on
-the start arrangement.
+To animate: press **Record**, move the players where they should end up, then
+press **Play** — whatever moved is the play. The rewind button puts everyone
+back at the start.
+
+To show the ball travelling, pick the route tool and tap each place it goes —
+the fielder, the bag, the plate. Taps snap to whatever is under them, and the
+ball runs the legs in order when the play runs.
+
+**Plays** opens a library of 25 situations a 10-11U team should know, from a 6-3
+to a first-and-third double steal. Pick one and press Play.
 
 ## Layout
 
@@ -57,7 +65,8 @@ src/
   model/          # no React in here — pure logic, all of it unit tested
     fieldGeometry.ts   field dimensions, base and fielder positions, the SVG paths
     diagramState.ts    tokens, strokes, and the undo stack (a reducer)
-    tween.ts           interpolation between two arrangements
+    tween.ts           interpolation between two arrangements, and along a route
+    plays.ts           the 25-play library, and the compiler that loads one
     hitTest.ts         what a tap landed on
     path.ts            stroke smoothing and point/segment math
   components/     # FieldSurface (static), FieldStage (pointer input), TokenLayer,

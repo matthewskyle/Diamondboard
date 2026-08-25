@@ -19,11 +19,17 @@ export interface Stroke {
 /** Token id -> position. Used for animation start/end capture. */
 export type PositionMap = Record<string, Point>;
 
-export type Tool = 'select' | 'addRunner' | 'addBall' | 'pen' | 'erase';
+export type Tool = 'select' | 'addRunner' | 'addBall' | 'ballRoute' | 'pen' | 'erase';
 
 export interface DiagramState {
   tokens: Token[];
   strokes: Stroke[];
+  /**
+   * Where the ball goes: a self-contained polyline whose first point is where
+   * the route starts (seeded from the ball) and whose every later point is one
+   * throw or carry. Empty until the coach draws one.
+   */
+  ballRoute: Point[];
   /** Captured animation states. Null until the coach captures them. */
   start: PositionMap | null;
   end: PositionMap | null;
@@ -35,4 +41,5 @@ export type UndoEntry =
   | { kind: 'addToken'; token: Token; index: number }
   | { kind: 'removeToken'; id: string }
   | { kind: 'addStroke'; stroke: Stroke; index: number }
-  | { kind: 'removeStroke'; id: string };
+  | { kind: 'removeStroke'; id: string }
+  | { kind: 'restoreRoute'; route: Point[] };

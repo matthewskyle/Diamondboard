@@ -1,54 +1,67 @@
+export type RecordState = 'idle' | 'recording' | 'recorded';
+
 interface Props {
+  onOpenLibrary: () => void;
   onReset: () => void;
-  onSetStart: () => void;
-  onSetEnd: () => void;
+  onRecord: () => void;
   onPlay: () => void;
   onToStart: () => void;
-  hasStart: boolean;
-  hasEnd: boolean;
+  recordState: RecordState;
+  canPlay: boolean;
+  canRewind: boolean;
   isPlaying: boolean;
 }
 
+const RECORD_LABEL: Record<RecordState, string> = {
+  idle: 'Record',
+  recording: 'Recording…',
+  // Named for what pressing it does now: throw the old play away and start over.
+  recorded: 'Re-record',
+};
+
+const RECORD_HINT: Record<RecordState, string> = {
+  idle: 'Record a play from where the players stand now',
+  recording: 'Recording — move the players, then press Play',
+  recorded: 'Discard this play and record a new one',
+};
+
 /** Floats over the bottom-left of the field, clear of the tool bar. */
 export function PlayControls({
+  onOpenLibrary,
   onReset,
-  onSetStart,
-  onSetEnd,
+  onRecord,
   onPlay,
   onToStart,
-  hasStart,
-  hasEnd,
+  recordState,
+  canPlay,
+  canRewind,
   isPlaying,
 }: Props) {
   return (
     <div className="play-controls">
-      <button type="button" className="pill pill-light" onClick={onReset}>
-        New play
-      </button>
+      <div className="pill-group">
+        <button type="button" className="pill pill-light" onClick={onOpenLibrary}>
+          Plays
+        </button>
+        <button type="button" className="pill pill-light" onClick={onReset}>
+          New
+        </button>
+      </div>
       <div className="pill-group">
         <button
           type="button"
-          className="pill"
-          onClick={onSetStart}
+          className={recordState === 'recording' ? 'pill pill-recording' : 'pill'}
+          onClick={onRecord}
           disabled={isPlaying}
-          aria-label="Capture the start arrangement"
+          aria-label={RECORD_HINT[recordState]}
         >
-          Start{hasStart ? ' ✓' : ''}
-        </button>
-        <button
-          type="button"
-          className="pill"
-          onClick={onSetEnd}
-          disabled={isPlaying}
-          aria-label="Capture the end arrangement"
-        >
-          End{hasEnd ? ' ✓' : ''}
+          ● {RECORD_LABEL[recordState]}
         </button>
         <button
           type="button"
           className="pill pill-primary"
           onClick={onPlay}
-          disabled={!hasStart || !hasEnd || isPlaying}
+          disabled={!canPlay || isPlaying}
         >
           ▶ Play
         </button>
@@ -56,8 +69,8 @@ export function PlayControls({
           type="button"
           className="pill"
           onClick={onToStart}
-          disabled={!hasStart || isPlaying}
-          aria-label="Return to the start arrangement"
+          disabled={!canRewind || isPlaying}
+          aria-label="Return to the start of the play"
         >
           ⏮
         </button>
