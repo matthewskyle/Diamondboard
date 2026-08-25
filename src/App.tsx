@@ -9,7 +9,13 @@ import {
   initialState,
   resolvePlayback,
 } from './model/diagramState';
-import { DEFAULT_DURATION_MS, interpolatePositions, pointAlongPath } from './model/tween';
+import {
+  durationForSpeed,
+  dwellShareFor,
+  interpolatePositions,
+  pointAlongPath,
+  type PlaybackSpeed,
+} from './model/tween';
 import { compilePlay, type PlayDef } from './model/plays';
 import type { PositionMap, Tool } from './model/types';
 import { useTween } from './hooks/useTween';
@@ -19,6 +25,7 @@ export default function App() {
   const [tool, setTool] = useState<Tool>('select');
   const [animating, setAnimating] = useState<PositionMap | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [loadedPlay, setLoadedPlay] = useState<PlayDef | null>(null);
 
   const { start, end, ballRoute } = state;
@@ -27,11 +34,15 @@ export default function App() {
   const clip = useRef<{ from: PositionMap; to: PositionMap; route: readonly PositionMap[] } | null>(
     null,
   );
-  /** The ball's route for this playback: its start, then every leg. */
-  const ballLeg = useRef<{ id: string; path: { x: number; y: number }[] } | null>(null);
+  /** The ball's route for this playback, and how long it waits at each stop. */
+  const ballLeg = useRef<{
+    id: string;
+    path: { x: number; y: number }[];
+    dwellShare: number;
+  } | null>(null);
 
   const { play, isPlaying } = useTween({
-    durationMs: DEFAULT_DURATION_MS,
+    durationMs: durationForSpeed(speed),
     onFrame: useCallback((t: number) => {
       const current = clip.current;
       if (!current) return;
@@ -39,7 +50,7 @@ export default function App() {
       const leg = ballLeg.current;
       // The ball follows its route instead of cutting straight across, and at a
       // constant speed, so a long throw takes longer than a short one.
-      if (leg) positions[leg.id] = pointAlongPath(leg.path, t);
+      if (leg) positions[leg.id] = pointAlongPath(leg.path, t, leg.dwellShare);
       setAnimating(positions);
     }, []),
     onDone: useCallback(() => {
@@ -63,7 +74,10 @@ export default function App() {
 
     const ball = state.tokens.find((t) => t.type === 'ball');
     // The route is already a complete path, origin included.
-    ballLeg.current = ball && ballRoute.length > 1 ? { id: ball.id, path: ballRoute } : null;
+    ballLeg.current =
+      ball && ballRoute.length > 1
+        ? { id: ball.id, path: ballRoute, dwellShare: dwellShareFor(ballRoute.length - 2) }
+        : null;
 
     play();
   }, [state.tokens, start, end, ballRoute, play]);
@@ -94,23 +108,27 @@ export default function App() {
     <div className="app">
       <main className="stage">
         <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} />
-        {loadedPlay && (
-          <div className="play-caption">
-            <strong>{loadedPlay.name}</strong>
-            <span>{loadedPlay.teaches}</span>
-          </div>
-        )}
-        <PlayControls
-          onOpenLibrary={() => setLibraryOpen(true)}
-          onReset={handleReset}
-          onRecord={() => dispatch({ type: 'captureStart' })}
-          onPlay={handlePlay}
-          onToStart={handleToStart}
-          recordState={recordState}
-          canPlay={resolvePlayback(state.tokens, start, end) !== null}
-          canRewind={start !== null && (end !== null || hasMovedFrom(state.tokens, start))}
-          isPlaying={isPlaying}
-        />
+        <div className="play-dock">
+          {loadedPlay && (
+            <div className="play-caption">
+              <strong>{loadedPlay.name}</strong>
+              <span>{loadedPlay.teaches}</span>
+            </div>
+          )}
+          <PlayControls
+            onOpenLibrary={() => setLibraryOpen(true)}
+            onReset={handleReset}
+            onRecord={() => dispatch({ type: 'captureStart' })}
+            onPlay={handlePlay}
+            onToStart={handleToStart}
+            recordState={recordState}
+            canPlay={resolvePlayback(state.tokens, start, end) !== null}
+            canRewind={start !== null && (end !== null || hasMovedFrom(state.tokens, start))}
+            speed={speed}
+            onSpeedChange={setSpeed}
+            isPlaying={isPlaying}
+          />
+        </div>
       </main>
 
       <PlayLibrary

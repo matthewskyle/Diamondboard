@@ -53,7 +53,11 @@ back at the start.
 
 To show the ball travelling, pick the route tool and tap each place it goes —
 the fielder, the bag, the plate. Taps snap to whatever is under them, and the
-ball runs the legs in order when the play runs.
+ball runs the legs in order when the play runs, pausing at each stop the way a
+fielder actually handles it.
+
+The **0.5× / 1× / 2×** button sets the pace. 1× is the default; 2× is the rate
+the board originally ran at.
 
 **Plays** opens a library of 25 situations a 10-11U team should know, from a 6-3
 to a first-and-third double steal. Pick one and press Play.

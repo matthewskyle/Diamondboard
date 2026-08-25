@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { easeInOutCubic, interpolatePositions, lerpPoint, pointAlongPath } from '../tween';
+import {
+  BASE_DURATION_MS,
+  durationForSpeed,
+  dwellShareFor,
+  easeInOutCubic,
+  interpolatePositions,
+  lerpPoint,
+  PLAYBACK_SPEEDS,
+  pointAlongPath,
+} from '../tween';
 
 const start = { a: { x: 0, y: 0 }, b: { x: 10, y: 10 } };
 const end = { a: { x: 100, y: 200 }, b: { x: 10, y: 10 } };
@@ -96,5 +105,111 @@ describe('pointAlongPath', () => {
     expect(pointAlongPath([{ x: 7, y: 9 }], 0.5)).toEqual({ x: 7, y: 9 });
     const stationary = [{ x: 5, y: 5 }, { x: 5, y: 5 }];
     expect(pointAlongPath(stationary, 0.5)).toEqual({ x: 5, y: 5 });
+  });
+});
+
+describe('playback speed', () => {
+  it('defaults to half the board original rate, with the original still available', () => {
+    expect(durationForSpeed(1)).toBe(BASE_DURATION_MS);
+    expect(durationForSpeed(2)).toBe(BASE_DURATION_MS / 2);
+    expect(durationForSpeed(2)).toBe(1800); // what the board used to run at
+    expect(durationForSpeed(0.5)).toBe(BASE_DURATION_MS * 2);
+  });
+
+  it('offers a slower option than the default', () => {
+    expect(PLAYBACK_SPEEDS).toContain(1);
+    expect(Math.min(...PLAYBACK_SPEEDS)).toBeLessThan(1);
+    for (const speed of PLAYBACK_SPEEDS) {
+      expect(durationForSpeed(speed)).toBeGreaterThan(0);
+    }
+    // Slower speed, longer play.
+    const sorted = [...PLAYBACK_SPEEDS].sort((a, b) => a - b);
+    const durations = sorted.map(durationForSpeed);
+    expect(durations).toEqual([...durations].sort((a, b) => b - a));
+  });
+});
+
+describe('dwellShareFor', () => {
+  it('is nothing when the ball never stops on the way', () => {
+    expect(dwellShareFor(0)).toBe(0);
+    expect(dwellShareFor(-1)).toBe(0);
+  });
+
+  it('grows with the number of stops but never eats the whole play', () => {
+    expect(dwellShareFor(1)).toBeCloseTo(0.12);
+    expect(dwellShareFor(2)).toBeCloseTo(0.24);
+    expect(dwellShareFor(20)).toBeLessThanOrEqual(0.45);
+    expect(dwellShareFor(20)).toBeLessThan(1);
+  });
+});
+
+describe('pointAlongPath with a dwell at each stop', () => {
+  // Two equal legs, so the maths is easy to read.
+  const path = [
+    { x: 0, y: 0 },
+    { x: 100, y: 0 },
+    { x: 200, y: 0 },
+  ];
+  const dwell = 0.2; // one stop, so the whole share is spent there
+
+  it('holds still at the stop', () => {
+    // Travel is 0.8 of the timeline, split evenly: leg one ends at t=0.4.
+    expect(pointAlongPath(path, 0.4, dwell)).toEqual({ x: 100, y: 0 });
+    expect(pointAlongPath(path, 0.5, dwell)).toEqual({ x: 100, y: 0 });
+    expect(pointAlongPath(path, 0.6, dwell)).toEqual({ x: 100, y: 0 });
+  });
+
+  it('starts moving again after the dwell', () => {
+    const after = pointAlongPath(path, 0.7, dwell);
+    expect(after.x).toBeGreaterThan(100);
+    expect(after.x).toBeLessThan(200);
+  });
+
+  it('still starts and finishes on the route', () => {
+    expect(pointAlongPath(path, 0, dwell)).toEqual({ x: 0, y: 0 });
+    expect(pointAlongPath(path, 1, dwell)).toEqual({ x: 200, y: 0 });
+  });
+
+  it('never goes backwards', () => {
+    let previous = -1;
+    for (let t = 0; t <= 1.0001; t += 0.02) {
+      const { x } = pointAlongPath(path, t, dwell);
+      expect(x).toBeGreaterThanOrEqual(previous - 1e-9);
+      previous = x;
+    }
+  });
+
+  it('spends real time paused — more than it would without a dwell', () => {
+    const held = [];
+    for (let t = 0; t <= 1.0001; t += 0.01) {
+      if (Math.abs(pointAlongPath(path, t, dwell).x - 100) < 1e-9) held.push(t);
+    }
+    expect(held.length).toBeGreaterThan(15); // ~20% of the timeline
+  });
+
+  it('matches plain travel when there is no dwell', () => {
+    for (let t = 0; t <= 1.0001; t += 0.1) {
+      expect(pointAlongPath(path, t, 0)).toEqual(pointAlongPath(path, t));
+    }
+  });
+
+  it('dwells at every stop of a relay, in order', () => {
+    const relay = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 200, y: 0 },
+      { x: 300, y: 0 },
+    ];
+    const share = dwellShareFor(2);
+    const stopA: number[] = [];
+    const stopB: number[] = [];
+    for (let t = 0; t <= 1.0001; t += 0.005) {
+      const { x } = pointAlongPath(relay, t, share);
+      if (Math.abs(x - 100) < 1e-9) stopA.push(t);
+      if (Math.abs(x - 200) < 1e-9) stopB.push(t);
+    }
+    expect(stopA.length).toBeGreaterThan(10);
+    expect(stopB.length).toBeGreaterThan(10);
+    expect(Math.max(...stopA)).toBeLessThan(Math.min(...stopB));
   });
 });
