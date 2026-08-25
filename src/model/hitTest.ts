@@ -87,3 +87,20 @@ export function routeAt(
   }
   return false;
 }
+
+/**
+ * The bag a dropped token should settle onto, if it landed near one. Bases only:
+ * a fielder dragged past a teammate should stay where he was put.
+ */
+export function snapToBase(p: Point, radius = 24): Point {
+  let best: Point | null = null;
+  let bestDistSq = radius * radius;
+  for (const base of [BASES.home, BASES.first, BASES.second, BASES.third]) {
+    const distSq = (base.x - p.x) ** 2 + (base.y - p.y) ** 2;
+    if (distSq <= bestDistSq) {
+      best = base;
+      bestDistSq = distSq;
+    }
+  }
+  return best ?? p;
+}

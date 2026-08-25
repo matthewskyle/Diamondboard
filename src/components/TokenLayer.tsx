@@ -55,6 +55,11 @@ function TokenShape({
     return (
       <g transform={transform} className="token token-runner">
         <circle r={RUNNER_RADIUS} className="tk-runner" />
+        {token.label && (
+          <text className="tk-label tk-label-runner" textAnchor="middle" dominantBaseline="central">
+            {token.label}
+          </text>
+        )}
       </g>
     );
   }

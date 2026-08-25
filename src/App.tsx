@@ -2,6 +2,7 @@ import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
 import { PlayControls, type RecordState } from './components/PlayControls';
 import { PlayLibrary } from './components/PlayLibrary';
+import { SetupChips } from './components/SetupChips';
 import { PlayRoleList } from './components/PlayRoleList';
 import { Toolbar } from './components/Toolbar';
 import {
@@ -22,6 +23,14 @@ import {
 import { compilePlay, PLAYS, type PlayDef } from './model/plays';
 import { playsForPosition, roleFor } from './model/roles';
 import type { PositionMap, Tool } from './model/types';
+import {
+  BASE_SLOTS,
+  occupiedSlots,
+  runnerInSlot,
+  SLOT_LABELS,
+  SLOT_SPOTS,
+  type BaseSlot,
+} from './model/setup';
 import { useTween } from './hooks/useTween';
 
 export default function App() {
@@ -111,6 +120,30 @@ export default function App() {
     dispatch({ type: 'stopRecording' });
   }, []);
 
+  // Tap a base to put a runner on it; tap it again to take him off.
+  const handleToggleSlot = useCallback(
+    (slot: BaseSlot) => {
+      const existing = runnerInSlot(state.tokens, slot);
+      if (existing) dispatch({ type: 'removeToken', id: existing.id });
+      else
+        dispatch({
+          type: 'addRunner',
+          at: SLOT_SPOTS[slot],
+          label: SLOT_LABELS[slot],
+        });
+    },
+    [state.tokens],
+  );
+
+  const handleLoadBases = useCallback(() => {
+    for (const slot of BASE_SLOTS) {
+      if (slot === 'batter') continue;
+      if (!runnerInSlot(state.tokens, slot)) {
+        dispatch({ type: 'addRunner', at: SLOT_SPOTS[slot], label: SLOT_LABELS[slot] });
+      }
+    }
+  }, [state.tokens]);
+
   const handleReset = useCallback(() => {
     setAnimating(null);
     setLoadedPlay(null);
@@ -177,6 +210,12 @@ export default function App() {
           highlight={position}
         />
         <div className="play-dock">
+          <SetupChips
+            occupied={occupiedSlots(state.tokens)}
+            onToggle={handleToggleSlot}
+            onLoadBases={handleLoadBases}
+            disabled={isPlaying}
+          />
           {loadedPlay && (
             <div className="play-caption">
               <strong>{loadedPlay.name}</strong>

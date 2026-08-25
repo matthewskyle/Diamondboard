@@ -389,3 +389,110 @@ describe('resolvePlayback', () => {
     expect(playback.to[s.tokens[1].id]).toEqual({ x: 400, y: 400 });
   });
 });
+
+describe('movement arrows', () => {
+  it('starts a play from where everyone stands', () => {
+    const s0 = initialState();
+    expect(s0.start).toBeNull();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    const s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+
+    // The first arrow captures the arrangement it is drawn over.
+    expect(s.start![ss.id]).toEqual({ x: ss.x, y: ss.y });
+    expect(s.end![ss.id]).toEqual({ x: 500, y: 383 });
+    // Everyone else is going nowhere.
+    const p = s.tokens.find((t) => t.label === 'CF')!;
+    expect(s.end![p.id]).toEqual(s.start![p.id]);
+  });
+
+  it('re-aiming an arrow replaces it rather than stacking', () => {
+    const s0 = initialState();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    let s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    s = diagramReducer(s, { type: 'setDestination', id: ss.id, to: { x: 300, y: 300 } });
+    expect(s.end![ss.id]).toEqual({ x: 300, y: 300 });
+  });
+
+  it('undoes one arrow at a time, back to standing still', () => {
+    const s0 = initialState();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    let s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    s = diagramReducer(s, { type: 'setDestination', id: ss.id, to: { x: 300, y: 300 } });
+
+    s = diagramReducer(s, { type: 'undo' });
+    expect(s.end![ss.id]).toEqual({ x: 500, y: 383 });
+    s = diagramReducer(s, { type: 'undo' });
+    expect(s.end![ss.id]).toEqual(s.start![ss.id]);
+  });
+
+  it('clears an arrow by sending the player nowhere', () => {
+    const s0 = initialState();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    let s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    s = diagramReducer(s, { type: 'clearDestination', id: ss.id });
+    expect(s.end![ss.id]).toEqual(s.start![ss.id]);
+  });
+
+  it('ignores clearing an arrow that was never drawn', () => {
+    const s0 = initialState();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    const s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    const cf = s.tokens.find((t) => t.label === 'CF')!;
+    expect(diagramReducer(s, { type: 'clearDestination', id: cf.id })).toBe(s);
+  });
+
+  it('gives an arrow to a play the coach can immediately play', () => {
+    const s0 = initialState();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    const s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    const playback = resolvePlayback(s.tokens, s.start, s.end)!;
+    expect(playback).not.toBeNull();
+    expect(playback.to[ss.id]).toEqual({ x: 500, y: 383 });
+  });
+
+  it('lets a runner join a drawn play without wiping the arrows', () => {
+    const s0 = initialState();
+    const ss = s0.tokens.find((t) => t.label === 'SS')!;
+    let s = diagramReducer(s0, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    s = diagramReducer(s, { type: 'addRunner', at: { x: 200, y: 200 }, label: 'R1' });
+
+    // The newcomer stands still, and the board has not drifted from its start.
+    const runner = s.tokens.at(-1)!;
+    expect(s.start![runner.id]).toEqual({ x: 200, y: 200 });
+    expect(s.end![runner.id]).toEqual({ x: 200, y: 200 });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(false);
+    expect(s.end![ss.id]).toEqual({ x: 500, y: 383 });
+  });
+});
+
+describe('arrows drawn during a recording', () => {
+  it('survive Stop, which used to throw the whole play away', () => {
+    // Record captures the start, the coach points a fielder instead of dragging
+    // him, and Stop saw an unchanged board and cancelled everything.
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    const ss = s.tokens.find((t) => t.label === 'SS')!;
+    s = diagramReducer(s, { type: 'setDestination', id: ss.id, to: { x: 500, y: 383 } });
+    s = diagramReducer(s, { type: 'stopRecording' });
+
+    expect(s.start).not.toBeNull();
+    expect(s.end![ss.id]).toEqual({ x: 500, y: 383 });
+    expect(resolvePlayback(s.tokens, s.start, s.end)).not.toBeNull();
+  });
+
+  it('still cancels a recording where genuinely nothing happened', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    s = diagramReducer(s, { type: 'stopRecording' });
+    expect(s.start).toBeNull();
+    expect(s.end).toBeNull();
+  });
+
+  it('leaves a dragged recording working exactly as before', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    const ss = s.tokens.find((t) => t.label === 'SS')!;
+    s = diagramReducer(s, { type: 'moveToken', id: ss.id, x: 500, y: 383 });
+    s = diagramReducer(s, { type: 'stopRecording' });
+    // Stop stores the end and rewinds the board to the start.
+    expect(s.end![ss.id]).toEqual({ x: 500, y: 383 });
+    expect(s.tokens.find((t) => t.id === ss.id)).toMatchObject(s.start![ss.id]);
+  });
+});

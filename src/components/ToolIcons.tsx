@@ -80,3 +80,13 @@ export function RouteIcon() {
     </Icon>
   );
 }
+
+export function MoveArrowIcon() {
+  return (
+    <Icon>
+      <circle cx="5.5" cy="18.5" r="2.6" fill="currentColor" />
+      <path d="M7.5 16.5 L17 7" {...STROKE} />
+      <path d="M12.6 6.4 L17.8 6.2 L17.6 11.4" {...STROKE} />
+    </Icon>
+  );
+}
