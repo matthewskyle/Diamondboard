@@ -22,6 +22,8 @@ interface Props {
   tool: Tool;
   /** Positions driven by the animation transport; suppresses interaction. */
   animating: PositionMap | null;
+  /** The position being studied, if any. */
+  highlight?: string | null;
 }
 
 interface DragState {
@@ -36,7 +38,7 @@ interface DragState {
 /** Ignore sub-pixel pointermove noise when recording a pen stroke. */
 const MIN_STROKE_STEP = 3;
 
-export function FieldStage({ state, dispatch, tool, animating }: Props) {
+export function FieldStage({ state, dispatch, tool, animating, highlight }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [draft, setDraft] = useState<{ pointerId: number; points: Point[] } | null>(null);
@@ -201,7 +203,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
       <FieldSurface />
       <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
       <BallRouteLayer route={state.ballRoute} />
-      <TokenLayer tokens={state.tokens} overrides={overrides} />
+      <TokenLayer tokens={state.tokens} overrides={overrides} highlight={highlight} />
     </svg>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useReducer, useRef, useState } from 'react';
+import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
 import { PlayControls, type RecordState } from './components/PlayControls';
 import { PlayLibrary } from './components/PlayLibrary';
@@ -16,7 +16,8 @@ import {
   pointAlongPath,
   type PlaybackSpeed,
 } from './model/tween';
-import { compilePlay, type PlayDef } from './model/plays';
+import { compilePlay, PLAYS, type PlayDef } from './model/plays';
+import { playsForPosition, roleFor } from './model/roles';
 import type { PositionMap, Tool } from './model/types';
 import { useTween } from './hooks/useTween';
 
@@ -27,6 +28,7 @@ export default function App() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [loadedPlay, setLoadedPlay] = useState<PlayDef | null>(null);
+  const [position, setPosition] = useState<string | null>(null);
 
   const { start, end, ballRoute } = state;
 
@@ -89,17 +91,54 @@ export default function App() {
   const handleReset = useCallback(() => {
     setAnimating(null);
     setLoadedPlay(null);
+    setPosition(null);
     dispatch({ type: 'reset' });
   }, []);
 
-  const handleSelectPlay = useCallback((play: PlayDef) => {
-    const compiled = compilePlay(play);
+  // Studying a position walks the plays it has a job in, in library order.
+  // Memoised so stepping does not rebuild the list on every render.
+  const studyPlays = useMemo(
+    () => (position ? playsForPosition(PLAYS, position) : []),
+    [position],
+  );
+  const studyIndex = loadedPlay ? studyPlays.indexOf(loadedPlay) : -1;
+
+  const loadPlay = useCallback((play: PlayDef) => {
     setAnimating(null);
     setLoadedPlay(play);
-    setLibraryOpen(false);
     setTool('select');
-    dispatch({ type: 'loadPlay', ...compiled });
+    dispatch({ type: 'loadPlay', ...compilePlay(play) });
   }, []);
+
+  const handleSelectPlay = useCallback(
+    (play: PlayDef) => {
+      loadPlay(play);
+      setLibraryOpen(false);
+    },
+    [loadPlay],
+  );
+
+  const handleStep = useCallback(
+    (delta: number) => {
+      if (studyPlays.length === 0) return;
+      const next = (studyIndex + delta + studyPlays.length) % studyPlays.length;
+      loadPlay(studyPlays[next]);
+    },
+    [studyPlays, studyIndex, loadPlay],
+  );
+
+  const handlePositionChange = useCallback(
+    (next: string | null) => {
+      setPosition(next);
+      // Show this position's first play behind the list, so the field is already
+      // answering the question while the coach reads the rest of the options.
+      if (next) {
+        const plays = playsForPosition(PLAYS, next);
+        if (plays.length > 0) loadPlay(plays[0]);
+      }
+    },
+    [loadPlay],
+  );
 
   const recordState: RecordState =
     start === null ? 'idle' : end === null ? 'recording' : 'recorded';
@@ -107,12 +146,20 @@ export default function App() {
   return (
     <div className="app">
       <main className="stage">
-        <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} />
+        <FieldStage
+          state={state}
+          dispatch={dispatch}
+          tool={tool}
+          animating={animating}
+          highlight={position}
+        />
         <div className="play-dock">
           {loadedPlay && (
             <div className="play-caption">
               <strong>{loadedPlay.name}</strong>
-              <span>{loadedPlay.teaches}</span>
+              <span>
+                {position ? roleFor(loadedPlay, position).text : loadedPlay.teaches}
+              </span>
             </div>
           )}
           <PlayControls
@@ -127,6 +174,12 @@ export default function App() {
             speed={speed}
             onSpeedChange={setSpeed}
             isPlaying={isPlaying}
+            study={
+              position && studyIndex >= 0
+                ? { label: position, index: studyIndex, total: studyPlays.length }
+                : null
+            }
+            onStep={handleStep}
           />
         </div>
       </main>
@@ -134,6 +187,8 @@ export default function App() {
       <PlayLibrary
         open={libraryOpen}
         currentId={loadedPlay?.id ?? null}
+        position={position}
+        onPositionChange={handlePositionChange}
         onSelect={handleSelectPlay}
         onClose={() => setLibraryOpen(false)}
       />

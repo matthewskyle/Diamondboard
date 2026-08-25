@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compilePlay, PLAYS, PLAY_CATEGORIES } from '../plays';
-import { VIEW_BOX, MIN_VIEW_HEIGHT, TOKEN_RADIUS } from '../fieldGeometry';
+import { BASES, HOME, VIEW_BOX, MIN_VIEW_HEIGHT, TOKEN_RADIUS } from '../fieldGeometry';
 
 describe('the play library', () => {
   it('has 50 plays with unique ids', () => {
@@ -33,7 +33,7 @@ describe('compilePlay', () => {
       expect(tokens.filter((t) => t.type === 'fielder'), play.id).toHaveLength(9);
       expect(tokens.filter((t) => t.type === 'ball'), play.id).toHaveLength(1);
       expect(tokens.filter((t) => t.type === 'runner'), play.id).toHaveLength(
-        play.runners?.length ?? 0,
+        (play.runners?.length ?? 0) + (play.batterTo ? 1 : 0),
       );
 
       // Both arrangements cover every token, or the tween would leave one behind.
@@ -81,6 +81,46 @@ describe('compilePlay', () => {
         (id) => start[id].x !== end[id].x || start[id].y !== end[id].y,
       );
       expect(moved, `${play.id} has nothing happening`).toBe(true);
+    }
+  });
+
+  it('puts a batter on the field for every ball put in play', () => {
+    for (const play of PLAYS) {
+      // A batted ball is one whose route starts at the plate. The exceptions
+      // are balls the catcher already has, which never leave a bat.
+      const startsAtThePlate = 'base' in play.ball[0] && play.ball[0].base === 'home';
+      const catcherHasIt = ['rundown-third-home', 'delayed-steal'].includes(play.id);
+      if (!startsAtThePlate || catcherHasIt) continue;
+      expect(play.batterTo, `${play.id} has nobody batting`).toBeDefined();
+    }
+  });
+
+  it('starts the batter in the box and makes him run', () => {
+    for (const play of PLAYS) {
+      if (!play.batterTo) continue;
+      const { tokens, start, end } = compilePlay(play);
+      const batter = tokens.find((t) => t.type === 'runner')!;
+      // Beside the plate, not on it — a batted ball starts at home as well, and
+      // the two tokens would sit on top of each other.
+      const fromPlate = Math.hypot(start[batter.id].x - HOME.x, start[batter.id].y - HOME.y);
+      expect(fromPlate, `${play.id} batter is standing on the plate`).toBeGreaterThan(12);
+      expect(fromPlate, `${play.id} batter is nowhere near the box`).toBeLessThan(60);
+      const travelled = Math.hypot(
+        end[batter.id].x - start[batter.id].x,
+        end[batter.id].y - start[batter.id].y,
+      );
+      expect(travelled, `${play.id} batter never left the box`).toBeGreaterThan(20);
+    }
+  });
+
+  it('leaves the batter short of first when the ball is caught in the air', () => {
+    // He ran; he just did not make it. Putting him on the bag would say he did.
+    for (const id of ['pop-up-catcher', 'sac-fly-center', 'tag-from-second']) {
+      const play = PLAYS.find((p) => p.id === id)!;
+      const { tokens, end } = compilePlay(play);
+      const batter = tokens.find((t) => t.type === 'runner')!;
+      const toFirst = Math.hypot(end[batter.id].x - BASES.first.x, end[batter.id].y - BASES.first.y);
+      expect(toFirst, id).toBeGreaterThan(20);
     }
   });
 

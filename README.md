@@ -62,6 +62,10 @@ the board originally ran at.
 **Plays** opens a library of 50 situations a 10-11U team should know, from a 6-3
 to playing a ball off the wall. Pick one and press Play.
 
+Picking a **position** in that list turns it into a study session for one
+player: it narrows to the plays they have a job in, says what that job is, rings
+them on the field, and gives you prev/next to walk through the lot.
+
 ## Layout
 
 ```
