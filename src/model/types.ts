@@ -19,7 +19,7 @@ export interface Stroke {
 /** Token id -> position. Used for animation start/end capture. */
 export type PositionMap = Record<string, Point>;
 
-export type Tool = 'select' | 'addRunner' | 'addBall' | 'ballRoute' | 'pen' | 'erase';
+export type Tool = 'select' | 'move' | 'addRunner' | 'addBall' | 'ballRoute' | 'pen' | 'erase';
 
 export interface DiagramState {
   tokens: Token[];
@@ -37,7 +37,13 @@ export interface DiagramState {
    * whatever the coach dragged.
    */
   runnerRoutes: Record<string, Point[]>;
-  /** Captured animation states. Null until the coach captures them. */
+  /**
+   * Captured animation states. Null until the coach captures them.
+   *
+   * A token whose start and end differ has a movement arrow drawn for it, so
+   * recording a play and pointing an arrow at a base are two ways of filling in
+   * the same pair of arrangements.
+   */
   start: PositionMap | null;
   end: PositionMap | null;
   undoStack: UndoEntry[];
@@ -49,4 +55,11 @@ export type UndoEntry =
   | { kind: 'removeToken'; id: string }
   | { kind: 'addStroke'; stroke: Stroke; index: number }
   | { kind: 'removeStroke'; id: string }
-  | { kind: 'restoreRoute'; route: Point[] };
+  | { kind: 'restoreRoute'; route: Point[] }
+  | {
+      kind: 'restoreDestination';
+      id: string;
+      /** The previous arrow tip, or undefined when there was no arrow. */
+      to: Point | undefined;
+      route: Point[] | undefined;
+    };

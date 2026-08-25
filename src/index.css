@@ -99,12 +99,50 @@ body {
   stroke-linejoin: round;
 }
 
+.fx-move {
+  fill: none;
+  stroke: var(--chalk);
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0.92;
+}
+
+.fx-move-head {
+  fill: var(--chalk);
+}
+
+/* The ball already has a dashed route; keep its own hop quieter. */
+.fx-move-ball {
+  opacity: 0.5;
+}
+
+.fx-move-head-aiming {
+  fill: var(--accent);
+}
+
+.fx-move-aiming {
+  stroke: var(--accent);
+  opacity: 1;
+}
+
 .fx-route {
   fill: none;
   stroke: var(--chalk);
   stroke-width: 4;
   stroke-dasharray: 13 9;
   stroke-linecap: round;
+}
+
+.fx-route-stop {
+  fill: var(--ink);
+  opacity: 0.82;
+}
+
+.fx-route-stop-label {
+  fill: var(--chalk);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
 }
 
 .fx-route-head {
@@ -133,6 +171,11 @@ body {
   fill: none;
   stroke: #b4453c;
   stroke-width: 1.4;
+}
+
+.tk-label-runner {
+  fill: #fff;
+  font-size: 11px;
 }
 
 .tk-highlight {
@@ -209,6 +252,39 @@ body {
 
 .pill:disabled {
   opacity: 0.45;
+  cursor: default;
+}
+
+.setup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0 calc(0.7rem + env(safe-area-inset-left));
+}
+
+.setup-chip {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.6rem;
+  border: 1.5px solid rgb(255 255 255 / 0.25);
+  border-radius: 10px;
+  background: rgb(19 24 38 / 0.82);
+  color: var(--pill-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.setup-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.setup-chip:disabled {
+  opacity: 0.4;
   cursor: default;
 }
 

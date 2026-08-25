@@ -1,6 +1,7 @@
 import type { Tool } from '../model/types';
 import {
   BallIcon,
+  MoveArrowIcon,
   EraseIcon,
   PenIcon,
   RouteIcon,
@@ -18,6 +19,7 @@ interface Props {
 
 const TOOLS: ReadonlyArray<{ tool: Tool; label: string; Icon: () => React.ReactElement }> = [
   { tool: 'select', label: 'Select and move', Icon: SelectIcon },
+  { tool: 'move', label: 'Point a player where to go', Icon: MoveArrowIcon },
   { tool: 'addRunner', label: 'Add runner', Icon: RunnerIcon },
   { tool: 'addBall', label: 'Place ball', Icon: BallIcon },
   { tool: 'ballRoute', label: 'Draw where the ball goes', Icon: RouteIcon },

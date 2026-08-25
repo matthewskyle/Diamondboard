@@ -32,7 +32,9 @@ export function initialState(): DiagramState {
 
 export type DiagramAction =
   | { type: 'moveToken'; id: string; x: number; y: number }
-  | { type: 'addRunner'; at: Point }
+  | { type: 'setDestination'; id: string; to: Point }
+  | { type: 'clearDestination'; id: string }
+  | { type: 'addRunner'; at: Point; label?: string }
   | { type: 'addBall'; at: Point }
   | { type: 'removeToken'; id: string }
   | { type: 'addStroke'; points: Point[] }
@@ -73,10 +75,53 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       );
     }
 
+    case 'setDestination': {
+      const token = state.tokens.find((t) => t.id === action.id);
+      if (!token) return state;
+      // The first arrow is what starts a play: everyone's spot right now
+      // becomes the start, and this token gets somewhere to be.
+      const start = state.start ?? capturePositions(state.tokens);
+      const end = { ...(state.end ?? start), [action.id]: action.to };
+      const runnerRoutes = { ...state.runnerRoutes };
+      // A hand-drawn arrow is a straight line; drop any base path the library
+      // gave this runner, or he would curve off toward a bag nobody aimed at.
+      const previousRoute = runnerRoutes[action.id];
+      delete runnerRoutes[action.id];
+      return push({ ...state, start, end, runnerRoutes }, {
+        kind: 'restoreDestination',
+        id: action.id,
+        to: state.end?.[action.id],
+        route: previousRoute,
+      });
+    }
+
+    case 'clearDestination': {
+      if (!state.end || !state.start) return state;
+      const current = state.end[action.id];
+      const home = state.start[action.id];
+      if (!current || !home) return state;
+      if (Math.abs(current.x - home.x) < 0.01 && Math.abs(current.y - home.y) < 0.01) return state;
+      const previousRoute = state.runnerRoutes[action.id];
+      const runnerRoutes = { ...state.runnerRoutes };
+      delete runnerRoutes[action.id];
+      return push({ ...state, end: { ...state.end, [action.id]: home }, runnerRoutes }, {
+        kind: 'restoreDestination',
+        id: action.id,
+        to: current,
+        route: previousRoute,
+      });
+    }
+
     case 'addRunner': {
-      const token: Token = { id: nextId('runner'), type: 'runner', x: action.at.x, y: action.at.y };
+      const token: Token = {
+        id: nextId('runner'),
+        type: 'runner',
+        label: action.label,
+        x: action.at.x,
+        y: action.at.y,
+      };
       return push(
-        { ...state, tokens: [...state.tokens, token] },
+        { ...state, tokens: [...state.tokens, token], ...withToken(state, token) },
         { kind: 'removeToken', id: token.id },
       );
     }
@@ -94,7 +139,7 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       }
       const token: Token = { id: nextId('ball'), type: 'ball', x: action.at.x, y: action.at.y };
       return push(
-        { ...state, tokens: [...state.tokens, token] },
+        { ...state, tokens: [...state.tokens, token], ...withToken(state, token) },
         { kind: 'removeToken', id: token.id },
       );
     }
@@ -104,7 +149,11 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       // Fielders are permanent — there are always nine, and nothing re-adds them.
       if (index === -1 || state.tokens[index].type === 'fielder') return state;
       return push(
-        { ...state, tokens: state.tokens.filter((t) => t.id !== action.id) },
+        {
+          ...state,
+          tokens: state.tokens.filter((t) => t.id !== action.id),
+          ...withoutToken(state, action.id),
+        },
         { kind: 'addToken', token: state.tokens[index], index },
       );
     }
@@ -167,8 +216,14 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
     case 'stopRecording': {
       if (!state.start) return state;
       // Nothing moved — cancel the recording rather than storing an empty play.
-      if (!hasMovedFrom(state.tokens, state.start)) {
+      // Arrows drawn during the recording count: they are movement that was
+      // pointed at rather than dragged, and throwing them away would lose the
+      // play without saying so.
+      if (!hasMovedFrom(state.tokens, state.start) && !hasArrows(state.start, state.end)) {
         return { ...state, start: null, end: null };
+      }
+      if (!hasMovedFrom(state.tokens, state.start) && hasArrows(state.start, state.end)) {
+        return state; // already a finished play; leave the arrows alone
       }
       const end = capturePositions(state.tokens);
       const start = state.start;
@@ -205,6 +260,16 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
     default:
       return state;
   }
+}
+
+/** Is anybody pointed somewhere other than where they stand? */
+export function hasArrows(start: PositionMap | null, end: PositionMap | null): boolean {
+  if (!start || !end) return false;
+  return Object.keys(end).some((id) => {
+    const from = start[id];
+    const to = end[id];
+    return !!from && !!to && Math.hypot(to.x - from.x, to.y - from.y) > 0.01;
+  });
 }
 
 /**
@@ -246,6 +311,35 @@ export function resolvePlayback(
   return null;
 }
 
+/**
+ * A token that arrives once a play already exists has to enter both
+ * arrangements, or adding a runner would read as movement and overwrite the
+ * arrows already drawn. It starts and finishes in the same spot: it has nowhere
+ * to be yet.
+ *
+ * An open recording (a start with no end) is left alone: there, a drag is how
+ * the coach says where somebody finishes, and the board is meant to drift from
+ * the captured start.
+ */
+function withToken(state: DiagramState, token: Token): Pick<DiagramState, 'start' | 'end'> {
+  if (!state.start || !state.end) return { start: state.start, end: state.end };
+  const at = { x: token.x, y: token.y };
+  return {
+    start: { ...state.start, [token.id]: at },
+    end: { ...state.end, [token.id]: at },
+  };
+}
+
+function withoutToken(state: DiagramState, id: string): Pick<DiagramState, 'start' | 'end'> {
+  if (!state.start || !state.end) return { start: state.start, end: state.end };
+  const drop = (map: PositionMap) => {
+    const next = { ...map };
+    delete next[id];
+    return next;
+  };
+  return { start: drop(state.start), end: drop(state.end) };
+}
+
 export function capturePositions(tokens: readonly Token[]): PositionMap {
   const positions: PositionMap = {};
   for (const t of tokens) positions[t.id] = { x: t.x, y: t.y };
@@ -281,6 +375,17 @@ function applyUndo(state: DiagramState): DiagramState {
     }
     case 'restoreRoute':
       return { ...state, undoStack, ballRoute: entry.route };
+    case 'restoreDestination': {
+      if (!state.end) return { ...state, undoStack };
+      const end = { ...state.end };
+      // No previous arrow means the token simply finishes where it stands.
+      if (entry.to) end[entry.id] = entry.to;
+      else if (state.start?.[entry.id]) end[entry.id] = state.start[entry.id];
+      const runnerRoutes = { ...state.runnerRoutes };
+      if (entry.route) runnerRoutes[entry.id] = entry.route;
+      else delete runnerRoutes[entry.id];
+      return { ...state, undoStack, end, runnerRoutes };
+    }
     case 'removeStroke':
       return { ...state, undoStack, strokes: state.strokes.filter((s) => s.id !== entry.id) };
     case 'addStroke': {
