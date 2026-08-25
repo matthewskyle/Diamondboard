@@ -59,8 +59,8 @@ fielder actually handles it.
 The **0.5× / 1× / 2×** button sets the pace. 1× is the default; 2× is the rate
 the board originally ran at.
 
-**Plays** opens a library of 25 situations a 10-11U team should know, from a 6-3
-to a first-and-third double steal. Pick one and press Play.
+**Plays** opens a library of 50 situations a 10-11U team should know, from a 6-3
+to playing a ball off the wall. Pick one and press Play.
 
 ## Layout
 
