@@ -135,6 +135,13 @@ body {
   stroke-width: 1.4;
 }
 
+.tk-highlight {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  opacity: 0.95;
+}
+
 .tk-label {
   fill: var(--ink);
   font-size: 17px;
@@ -326,6 +333,57 @@ body {
 .library-item-situation {
   font-size: 0.78rem;
   color: #5c635e;
+}
+
+.position-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.6rem 0.9rem 0.4rem;
+  border-bottom: 1px solid rgb(0 0 0 / 0.08);
+}
+
+.position-chip {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 0.55rem;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.position-chip[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--pill-ink);
+  border-color: var(--ink);
+}
+
+.position-summary {
+  margin: 0;
+  padding: 0.5rem 0.9rem 0;
+  font-size: 0.8rem;
+  color: #5c635e;
+}
+
+.study-stepper {
+  align-items: center;
+  background: var(--pill);
+  border-radius: 12px;
+  padding: 0 0.15rem;
+}
+
+.study-count {
+  padding: 0 0.5rem;
+  color: var(--pill-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* --- Tool bar ----------------------------------------------------------- */

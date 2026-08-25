@@ -14,6 +14,9 @@ interface Props {
   speed: PlaybackSpeed;
   onSpeedChange: (speed: PlaybackSpeed) => void;
   isPlaying: boolean;
+  /** Set while studying one position: step through that position's plays. */
+  study: { label: string; index: number; total: number } | null;
+  onStep: (delta: number) => void;
 }
 
 const RECORD_LABEL: Record<RecordState, string> = {
@@ -42,11 +45,38 @@ export function PlayControls({
   speed,
   onSpeedChange,
   isPlaying,
+  study,
+  onStep,
 }: Props) {
   // One button that steps through the speeds, so the bar stays thumb-sized.
   const nextSpeed = PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(speed) + 1) % PLAYBACK_SPEEDS.length];
   return (
     <div className="play-controls">
+      {study && (
+        <div className="pill-group study-stepper">
+          <button
+            type="button"
+            className="pill"
+            onClick={() => onStep(-1)}
+            disabled={isPlaying}
+            aria-label="Previous play for this position"
+          >
+            ‹
+          </button>
+          <span className="study-count">
+            {study.label} · {study.index + 1} of {study.total}
+          </span>
+          <button
+            type="button"
+            className="pill"
+            onClick={() => onStep(1)}
+            disabled={isPlaying}
+            aria-label="Next play for this position"
+          >
+            ›
+          </button>
+        </div>
+      )}
       <div className="pill-group">
         <button type="button" className="pill pill-light" onClick={onOpenLibrary}>
           Plays

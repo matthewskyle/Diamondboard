@@ -93,7 +93,7 @@ the white lines do all the shape work — plus the near-black button fill
   ball holds at every intermediate stop — 12% of the playback each, capped at
   45% in total so a long relay stays mostly movement. Fielders keep moving
   through the pause: the ball is what is being caught.
-- **A library of 50 set plays.** SPEC.md §1 ruled template plays out of Phase 1;
+- **A library of 50 set plays**, each with a batter. SPEC.md §1 ruled template plays out of Phase 1;
   that is superseded. Each is written in real feet and bearings — who moves
   where, and where the ball goes — and compiled into the same arrangement and
   route the board already animates, so a library play is not a special case at
@@ -110,6 +110,25 @@ the white lines do all the shape work — plus the near-black button fill
 - **Undo depth is 50**, oldest dropped first.
 - **New play** (the spec's Reset) restores the nine default fielders and clears
   runners, the ball, strokes, both captures, and the undo stack.
+
+## Learning one position
+
+A player asking "what do I do?" wants a different cut of the same data than a
+coach picking a play. Choosing a position filters the library to the plays that
+position has a job in, rings their token so they can follow themselves, and puts
+prev/next in the dock to walk through them. The shortstop has a job in 28 of the
+50; the right fielder in 5.
+
+**Most of the wording is derived, not written.** If the ball comes to you, the
+play already knows where it goes next, so "field it and throw to first base"
+falls out of the data — and stays correct if the play is ever edited. Covering a
+base is the same. What cannot be derived is the rest of the job: charging,
+backing up, giving way. Those are written into the play itself, because
+inventing them would put words in a coach's mouth. A test asserts no play and
+position combination is left on the generic fallback.
+
+The list is grouped by category and the stepper follows that same order, so
+"4 of 28" is the fourth play a coach can actually see.
 
 ## Rotation
 

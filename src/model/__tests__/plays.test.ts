@@ -95,12 +95,16 @@ describe('compilePlay', () => {
     }
   });
 
-  it('starts the batter at the plate and makes him run', () => {
+  it('starts the batter in the box and makes him run', () => {
     for (const play of PLAYS) {
       if (!play.batterTo) continue;
       const { tokens, start, end } = compilePlay(play);
       const batter = tokens.find((t) => t.type === 'runner')!;
-      expect(start[batter.id], play.id).toEqual(HOME);
+      // Beside the plate, not on it — a batted ball starts at home as well, and
+      // the two tokens would sit on top of each other.
+      const fromPlate = Math.hypot(start[batter.id].x - HOME.x, start[batter.id].y - HOME.y);
+      expect(fromPlate, `${play.id} batter is standing on the plate`).toBeGreaterThan(12);
+      expect(fromPlate, `${play.id} batter is nowhere near the box`).toBeLessThan(60);
       const travelled = Math.hypot(
         end[batter.id].x - start[batter.id].x,
         end[batter.id].y - start[batter.id].y,
