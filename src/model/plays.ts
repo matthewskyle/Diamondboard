@@ -29,7 +29,13 @@ export interface PlayDef {
   category: string;
   /** What the players should take away. */
   teaches: string;
-  /** Where the runners start, and where they finish. */
+  /**
+   * Where the batter-runner finishes, for a ball put in play. Omitted when
+   * there is no batter running — a pitch, or a ball the catcher already has.
+   * Caught fly balls give a spot up the line: he ran, he just did not make it.
+   */
+  batterTo?: Spot;
+  /** Where the other runners start, and where they finish. */
   runners?: { from: Spot; to?: Spot }[];
   /** Fielders that move, and where they end. Everyone else holds. */
   moves?: Record<string, Spot>;
@@ -71,7 +77,12 @@ export function compilePlay(def: PlayDef): CompiledPlay {
   }
 
   const runnerEnds: Record<string, Point> = {};
-  for (const runner of def.runners ?? []) {
+  const runners = [
+    // The batter leads off the list, because that is the order he exists in.
+    ...(def.batterTo ? [{ from: { base: 'home' } as Spot, to: def.batterTo }] : []),
+    ...(def.runners ?? []),
+  ];
+  for (const runner of runners) {
     const from = resolve(runner.from, fielderEnds);
     const token: Token = { id: nextId('runner'), type: 'runner', x: from.x, y: from.y };
     tokens.push(token);
@@ -133,6 +144,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Nobody on. Ground ball in the hole at short.',
     category: 'Routine outs',
     teaches: 'Field it, set your feet, then throw. First baseman gets to the bag early.',
+    batterTo: { base: 'first' },
     moves: { SS: HIT.holeAtShort, '1B': { base: 'first' }, '2B': { at: [150, 10] } },
     ball: [{ base: 'home' }, { fielder: 'SS' }, { base: 'first' }],
   },
@@ -142,6 +154,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Nobody on. Ground ball to the second baseman.',
     category: 'Routine outs',
     teaches: 'The second baseman works around the ball so the throw carries toward first.',
+    batterTo: { base: 'first' },
     moves: { '2B': HIT.toSecond, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '2B' }, { base: 'first' }],
   },
@@ -151,6 +164,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Nobody on. Ground ball to third.',
     category: 'Routine outs',
     teaches: 'The longest throw on the infield: charge it and get something behind it.',
+    batterTo: { base: 'first' },
     moves: { '3B': HIT.toThird, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '3B' }, { base: 'first' }],
   },
@@ -160,6 +174,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Nobody on. Ball hit straight back at the pitcher.',
     category: 'Routine outs',
     teaches: 'Field it, turn to the glove side, and throw chest-high to first.',
+    batterTo: { base: 'first' },
     moves: { P: HIT.comebacker, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'P' }, { base: 'first' }],
   },
@@ -169,6 +184,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Nobody on. Ground ball pulls the first baseman off the bag.',
     category: 'Routine outs',
     teaches: 'Every ground ball to the right side, the pitcher breaks for first. No exceptions.',
+    batterTo: { base: 'first' },
     moves: { '1B': HIT.toFirst, P: { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '1B' }, { fielder: 'P' }],
   },
@@ -180,6 +196,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first, less than two out. Ground ball to short.',
     category: 'Double plays',
     teaches: 'Get one for sure — knowing when not to turn two matters as much. The feed leads the second baseman across the bag.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { SS: HIT.holeAtShort, '2B': { base: 'second' }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'SS' }, { base: 'second' }, { base: 'first' }],
@@ -190,6 +207,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Ground ball to the second baseman.',
     category: 'Double plays',
     teaches: 'Shortstop covers when the ball is to the right side. Underhand the short feed.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { '2B': HIT.toSecond, SS: { base: 'second' }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '2B' }, { base: 'second' }, { base: 'first' }],
@@ -200,6 +218,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Ground ball to third.',
     category: 'Double plays',
     teaches: 'Third baseman throws to the bag, not to the fielder. Second baseman gets there first.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { '3B': HIT.toThird, '2B': { base: 'second' }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '3B' }, { base: 'second' }, { base: 'first' }],
@@ -210,6 +229,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Bases loaded, infield in. Ground ball to short.',
     category: 'Double plays',
     teaches: 'With the infield in, the shortest out is at the plate. Catcher shows a target.',
+    batterTo: { base: 'first' },
     runners: [
       { from: { base: 'third' }, to: { base: 'home' } },
       { from: { base: 'second' }, to: { base: 'third' } },
@@ -226,6 +246,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Bunt down the third base line.',
     category: 'Bunt defense',
     teaches: 'Corners charge, second baseman covers first. Somebody has to take the bag.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: {
       P: HIT.buntThirdSide,
@@ -242,6 +263,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first, bunt fielded quickly out front.',
     category: 'Bunt defense',
     teaches: 'Only if the pitcher is there fast. Listen for the catcher to make the call.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { P: HIT.buntFirstSide, SS: { base: 'second' }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'P' }, { base: 'second' }],
@@ -252,6 +274,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on third breaking with the pitch. Bunt in front of the plate.',
     category: 'Bunt defense',
     teaches: 'Pitcher fields and turns to the plate. Catcher clears the line and covers.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
     moves: { P: { at: [30, -8] }, '3B': { at: [50, -32] }, '1B': { at: [55, 34] } },
     ball: [{ base: 'home' }, { fielder: 'P' }, { base: 'home' }],
@@ -264,6 +287,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second. Base hit to left field, runner sent home.',
     category: 'Cutoffs and relays',
     teaches: 'Third baseman is the cut on throws home from left. Throw through him, chest high.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'second' }, to: { base: 'home' } }],
     moves: { LF: HIT.singleLeft, '3B': { at: [120, -22] }, SS: { base: 'third' } },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { fielder: '3B' }, { base: 'home' }],
@@ -274,6 +298,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Base hit to right, runner tries for third.',
     category: 'Cutoffs and relays',
     teaches: 'Shortstop lines up the cut to third. Third baseman stays on the bag.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
     moves: { RF: HIT.singleRight, SS: { at: [175, 6] }, '3B': { base: 'third' } },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: 'SS' }, { base: 'third' }],
@@ -284,7 +309,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Ball splits left and centre. Batter is running hard.',
     category: 'Cutoffs and relays',
     teaches: 'Shortstop sprints out as the relay, second baseman trails behind him.',
-    runners: [{ from: { base: 'home' }, to: { base: 'second' } }],
+    batterTo: { base: 'second' },
     moves: {
       LF: HIT.gapLeftCenter,
       CF: { at: [320, -12] },
@@ -299,7 +324,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Base hit up the middle. Batter thinks about stretching it.',
     category: 'Cutoffs and relays',
     teaches: 'Shortstop covers on a ball hit to centre, second baseman backs him up.',
-    runners: [{ from: { base: 'home' }, to: { base: 'first' } }],
+    batterTo: { base: 'first' },
     moves: { CF: HIT.singleCenter, SS: { base: 'second' }, '2B': { at: [200, 14] } },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { base: 'second' }],
   },
@@ -311,6 +336,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on third, one out. Fly ball to right field.',
     category: 'Fly balls',
     teaches: 'Catch it moving toward the plate. First baseman lines up the cut.',
+    batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
     moves: { RF: HIT.flyRight, '1B': { at: [120, 20] } },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: '1B' }, { base: 'home' }],
@@ -321,6 +347,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on third, fewer than two out. Fly ball to centre.',
     category: 'Fly balls',
     teaches: 'Centre fielder gets behind it so he can catch it going forward.',
+    batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
     moves: { CF: HIT.flyCenter, '1B': { at: [125, 12] } },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { fielder: '1B' }, { base: 'home' }],
@@ -331,6 +358,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Pop fly between the shortstop and the third baseman.',
     category: 'Fly balls',
     teaches: 'The player moving forward has it. Shortstop calls off third — call it loud, three times.',
+    batterTo: { at: [45, 45] },
     moves: { SS: HIT.popUpThirdSide, '3B': { at: [95, -40] } },
     ball: [{ base: 'home' }, { fielder: 'SS' }],
   },
@@ -397,6 +425,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first, base hit to left field.',
     category: 'Pitcher and catcher',
     teaches: 'The pitcher has a job on every ball in play: get behind the base the throw is going to.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
     moves: { LF: HIT.singleLeft, '3B': { base: 'third' }, SS: { at: [170, -24] }, P: { at: [150, -48] } },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { base: 'third' }],
@@ -413,7 +442,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Strike three gets past the catcher with first base open.',
     category: 'Routine outs',
     teaches: 'It is not an out until he is thrown out. Catcher blocks, finds it, throws.',
-    runners: [{ from: { base: 'home' }, to: { base: 'first' } }],
+    batterTo: { base: 'first' },
     moves: { C: { at: [18, 172] }, '1B': { base: 'first' } },
     ball: [{ base: 'mound' }, { at: [18, 172] }, { base: 'first' }],
   },
@@ -423,6 +452,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Ball dies halfway up the third base line.',
     category: 'Routine outs',
     teaches: 'Charge it, take it bare-handed on the run, and throw from where you are.',
+    batterTo: { base: 'first' },
     moves: { '3B': HIT.slowRollerThird, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '3B' }, { base: 'first' }],
   },
@@ -432,6 +462,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on third, infield playing back. Ground ball to short.',
     category: 'Routine outs',
     teaches: 'The run scores and that is fine. Playing back means you already chose the out.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
     moves: { SS: { at: [168, -22] }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'SS' }, { base: 'first' }],
@@ -442,6 +473,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Ball popped straight up behind the plate.',
     category: 'Routine outs',
     teaches: 'Mask off, find it, then throw the mask away. It will drift back toward the infield.',
+    batterTo: { at: [45, 45] },
     moves: { C: HIT.popUpBehindPlate },
     ball: [{ base: 'home' }, { fielder: 'C' }],
   },
@@ -452,6 +484,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Ball hit back through the box.',
     category: 'Double plays',
     teaches: 'Pitcher turns and leads the shortstop to the bag. Do not rush the feed.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { P: HIT.comebacker, SS: { base: 'second' }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'P' }, { base: 'second' }, { base: 'first' }],
@@ -462,6 +495,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Ground ball to the first baseman off the bag.',
     category: 'Double plays',
     teaches: 'First baseman goes to second with it, then the pitcher covers for the return.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { '1B': HIT.toFirst, SS: { base: 'second' }, P: { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: '1B' }, { base: 'second' }, { fielder: 'P' }],
@@ -472,6 +506,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Bases loaded, comebacker to the pitcher.',
     category: 'Double plays',
     teaches: 'Look the runner in, throw home, and let the catcher finish it at first.',
+    batterTo: { base: 'first' },
     runners: [
       { from: { base: 'third' }, to: { base: 'home' } },
       { from: { base: 'second' }, to: { base: 'third' } },
@@ -487,6 +522,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first. Bunt rolls toward the first baseman.',
     category: 'Bunt defense',
     teaches: 'First baseman fields it, so the second baseman has to be standing on the bag.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { '1B': HIT.buntFirstSide, '2B': { base: 'first' }, P: { at: [45, 14] } },
     ball: [{ base: 'home' }, { fielder: '1B' }, { base: 'first' }],
@@ -497,6 +533,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Bunt with two on and nobody out.',
     category: 'Bunt defense',
     teaches: 'Third baseman charges, so the shortstop must beat the runner to the bag.',
+    batterTo: { base: 'first' },
     runners: [
       { from: { base: 'second' }, to: { base: 'third' } },
       { from: { base: 'first' }, to: { base: 'second' } },
@@ -515,6 +552,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on third waits to see the bunt go down before he breaks.',
     category: 'Bunt defense',
     teaches: 'No play at the plate — take the out at first and keep the inning moving.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
     moves: { P: { at: [34, -10] }, '1B': { base: 'first' }, '3B': { at: [52, -30] } },
     ball: [{ base: 'home' }, { fielder: 'P' }, { base: 'first' }],
@@ -526,6 +564,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second scores on a base hit up the middle.',
     category: 'Cutoffs and relays',
     teaches: 'First baseman is the cut on throws home from centre and right.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'second' }, to: { base: 'home' } }],
     moves: { CF: HIT.singleCenter, '1B': { at: [120, 8] }, '2B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { fielder: '1B' }, { base: 'home' }],
@@ -536,6 +575,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Ball splits right and centre with a runner on first.',
     category: 'Cutoffs and relays',
     teaches: 'Ball to the right side, the second baseman is the relay and the shortstop covers.',
+    batterTo: { base: 'second' },
     runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
     moves: {
       RF: HIT.gapRightCenter,
@@ -552,9 +592,9 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'The throw home has no chance, but the batter is rounding first too far.',
     category: 'Cutoffs and relays',
     teaches: 'The cut man decides. If the run scores anyway, take the out behind it.',
+    batterTo: { base: 'second' },
     runners: [
       { from: { base: 'second' }, to: { base: 'home' } },
-      { from: { base: 'home' }, to: { base: 'second' } },
     ],
     moves: { LF: HIT.singleLeft, '3B': { at: [118, -20] }, SS: { base: 'second' } },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { fielder: '3B' }, { base: 'second' }],
@@ -565,7 +605,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Ball gets by the right fielder and rattles around the fence.',
     category: 'Cutoffs and relays',
     teaches: 'Get to where it is going, not where it hit. Relay man goes out to meet the throw.',
-    runners: [{ from: { base: 'home' }, to: { base: 'third' } }],
+    batterTo: { base: 'third' },
     moves: {
       RF: HIT.offTheWallRight,
       '2B': { at: [222, 20] },
@@ -581,6 +621,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second, one out. Deep fly ball to centre.',
     category: 'Fly balls',
     teaches: 'Deep enough and he goes. Shortstop lines up the throw to third.',
+    batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'second' }, to: { base: 'third' } }],
     moves: { CF: { at: [322, -6] }, SS: { at: [200, -16] }, '3B': { base: 'third' } },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { fielder: 'SS' }, { base: 'third' }],
@@ -591,6 +632,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'High fly drifting toward the line between the first baseman and right fielder.',
     category: 'Fly balls',
     teaches: 'The outfielder has it — he is moving in and can see the whole play. Call it early.',
+    batterTo: { at: [45, 45] },
     moves: { RF: HIT.downTheRightLine, '1B': { at: [156, 42] } },
     ball: [{ base: 'home' }, { fielder: 'RF' }],
   },
@@ -600,6 +642,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Fly ball splitting the left and centre fielders.',
     category: 'Fly balls',
     teaches: 'Centre fielder takes anything he can get to. Left fielder peels off and backs him up.',
+    batterTo: { at: [45, 45] },
     moves: { CF: { at: [300, -16] }, LF: { at: [268, -26] } },
     ball: [{ base: 'home' }, { fielder: 'CF' }],
   },
@@ -640,6 +683,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second. Ground ball hit in front of him to the shortstop.',
     category: 'Runners moving',
     teaches: 'Look him back to the bag first, then throw. He cannot run with you looking at him.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'second' } }],
     moves: { SS: { at: [152, -14] }, '1B': { base: 'first' } },
     ball: [{ base: 'home' }, { fielder: 'SS' }, { base: 'first' }],
@@ -651,6 +695,7 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Base hit to left with a runner scoring from second.',
     category: 'Pitcher and catcher',
     teaches: 'Throw home means the pitcher is behind the plate, deep enough to matter.',
+    batterTo: { base: 'first' },
     runners: [{ from: { base: 'second' }, to: { base: 'home' } }],
     moves: { LF: HIT.chargingLeft, P: HIT.behindThePlate, '3B': { at: [118, -20] } },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { base: 'home' }],
