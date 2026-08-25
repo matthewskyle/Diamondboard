@@ -149,6 +149,9 @@ const HIT = {
   chargingLeft: { at: [236, -28] } as Spot,
   passedBall: { at: [30, 150] } as Spot,
   behindThePlate: { at: [32, 193] } as Spot,
+  overCentreField: { at: [338, -4] } as Spot,
+  throughToLeft: { at: [232, -32] } as Spot,
+  intoRightCentre: { at: [278, 14] } as Spot,
 };
 
 export const PLAYS: readonly PlayDef[] = [
@@ -798,6 +801,53 @@ export const PLAYS: readonly PlayDef[] = [
     ],
     moves: { SS: { base: 'second' }, '3B': { base: 'third' } },
     ball: [{ base: 'mound' }, { base: 'home' }, { base: 'mound' }],
+  },
+
+  // --- Outfield reads -----------------------------------------------------
+  // The generated outfield series covers where to throw. These are the reads
+  // that decide whether there is anything to throw: the ball over your head,
+  // the one on the ground, and the one you have to keep in front. The line
+  // drive straight at you is already a play — see rf-line-double.
+
+  {
+    id: 'over-your-head',
+    name: 'Ball over the centre fielder',
+    situation: "Ball driven over the centre fielder's head with nobody on.",
+    category: 'Cutoffs and relays',
+    teaches: 'Turn and run to the spot. Backpedalling costs a step, and the step is the ball.',
+    roles: {
+      CF: 'Turn your back and run. You cannot backpedal to a ball hit over you.',
+    },
+    batterTo: { base: 'second' },
+    moves: { CF: HIT.overCentreField },
+    ball: [{ base: 'home' }, { fielder: 'CF' }, { base: 'second' }],
+  },
+  {
+    id: 'ground-through-left',
+    name: 'Ground ball through to left',
+    situation: 'Nobody on. Ground ball gets through the infield and the batter turns for two.',
+    category: 'Cutoffs and relays',
+    teaches: 'Field it like an infielder. Charging it is what keeps him at first.',
+    roles: {
+      LF: 'Charge it and field it like an infielder — do not wait for it to come to you.',
+    },
+    batterTo: { base: 'second' },
+    moves: { LF: HIT.throughToLeft },
+    ball: [{ base: 'home' }, { fielder: 'LF' }, { base: 'second' }],
+  },
+  {
+    id: 'keep-it-in-front',
+    name: 'Keep it in front',
+    situation: 'Runner on second, two out. Ball hit hard into the right-centre gap.',
+    category: 'Cutoffs and relays',
+    teaches: 'Get in front of it and knock it down. A ball that gets past you scores him twice over.',
+    roles: {
+      RF: 'Get your body in front of it. Knocking it down beats a clean pick you never make.',
+    },
+    batterTo: { base: 'first' },
+    runners: [{ from: { base: 'second' }, to: { base: 'third' } }],
+    moves: { RF: HIT.intoRightCentre },
+    ball: [{ base: 'home' }, { fielder: 'RF' }, { base: 'third' }],
   },
   ...MORE_PLAYS,
 ];
