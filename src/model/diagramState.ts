@@ -42,6 +42,8 @@ export type DiagramAction =
   | { type: 'setPositions'; positions: PositionMap }
   | { type: 'captureStart' }
   | { type: 'captureEnd' }
+  /** End a recording: store the current board as the end, then rewind to start. */
+  | { type: 'stopRecording' }
   | { type: 'undo' }
   | { type: 'reset' }
   | {
@@ -152,10 +154,29 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       };
 
     case 'captureStart':
-      return { ...state, start: capturePositions(state.tokens) };
+      // Re-record throws the old play away: new start, no end yet.
+      return { ...state, start: capturePositions(state.tokens), end: null };
 
     case 'captureEnd':
       return { ...state, end: capturePositions(state.tokens) };
+
+    case 'stopRecording': {
+      if (!state.start) return state;
+      // Nothing moved — cancel the recording rather than storing an empty play.
+      if (!hasMovedFrom(state.tokens, state.start)) {
+        return { ...state, start: null, end: null };
+      }
+      const end = capturePositions(state.tokens);
+      const start = state.start;
+      return {
+        ...state,
+        end,
+        tokens: state.tokens.map((t) => {
+          const p = start[t.id];
+          return p ? { ...t, x: p.x, y: p.y } : t;
+        }),
+      };
+    }
 
     case 'undo':
       return applyUndo(state);
@@ -201,11 +222,11 @@ export function hasMovedFrom(
 /**
  * What pressing Play should show, given where the board stands.
  *
- * There is no separate "stop recording" step: Play ends the recording. If
- * anything has moved since Record, that movement is the play, and the current
- * arrangement becomes its end. If nothing has moved — the coach just rewound,
- * say — the stored play is replayed instead of collapsing to a play in which
- * nothing happens.
+ * Prefer Stop to finish a recording (it stores the end and rewinds). Play can
+ * still close an open recording: if anything has moved since Record, that
+ * movement is the play and the current arrangement becomes its end. If nothing
+ * has moved — the coach just stopped or rewound — the stored play is replayed
+ * instead of collapsing to a play in which nothing happens.
  */
 export function resolvePlayback(
   tokens: readonly Token[],

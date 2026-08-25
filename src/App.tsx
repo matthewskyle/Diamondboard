@@ -88,6 +88,10 @@ export default function App() {
     if (start) dispatch({ type: 'setPositions', positions: start });
   }, [start]);
 
+  const handleStop = useCallback(() => {
+    dispatch({ type: 'stopRecording' });
+  }, []);
+
   const handleReset = useCallback(() => {
     setAnimating(null);
     setLoadedPlay(null);
@@ -166,6 +170,7 @@ export default function App() {
             onOpenLibrary={() => setLibraryOpen(true)}
             onReset={handleReset}
             onRecord={() => dispatch({ type: 'captureStart' })}
+            onStop={handleStop}
             onPlay={handlePlay}
             onToStart={handleToStart}
             recordState={recordState}

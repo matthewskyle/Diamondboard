@@ -6,6 +6,7 @@ interface Props {
   onOpenLibrary: () => void;
   onReset: () => void;
   onRecord: () => void;
+  onStop: () => void;
   onPlay: () => void;
   onToStart: () => void;
   recordState: RecordState;
@@ -21,14 +22,14 @@ interface Props {
 
 const RECORD_LABEL: Record<RecordState, string> = {
   idle: 'Record',
-  recording: 'Recording…',
+  recording: 'Stop',
   // Named for what pressing it does now: throw the old play away and start over.
   recorded: 'Re-record',
 };
 
 const RECORD_HINT: Record<RecordState, string> = {
   idle: 'Record a play from where the players stand now',
-  recording: 'Recording — move the players, then press Play',
+  recording: 'Stop recording — save the play and return to the start',
   recorded: 'Discard this play and record a new one',
 };
 
@@ -37,6 +38,7 @@ export function PlayControls({
   onOpenLibrary,
   onReset,
   onRecord,
+  onStop,
   onPlay,
   onToStart,
   recordState,
@@ -50,6 +52,7 @@ export function PlayControls({
 }: Props) {
   // One button that steps through the speeds, so the bar stays thumb-sized.
   const nextSpeed = PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(speed) + 1) % PLAYBACK_SPEEDS.length];
+  const recording = recordState === 'recording';
   return (
     <div className="play-controls">
       {study && (
@@ -88,12 +91,12 @@ export function PlayControls({
       <div className="pill-group">
         <button
           type="button"
-          className={recordState === 'recording' ? 'pill pill-recording' : 'pill'}
-          onClick={onRecord}
+          className={recording ? 'pill pill-recording' : 'pill'}
+          onClick={recording ? onStop : onRecord}
           disabled={isPlaying}
           aria-label={RECORD_HINT[recordState]}
         >
-          ● {RECORD_LABEL[recordState]}
+          {recording ? '■' : '●'} {RECORD_LABEL[recordState]}
         </button>
         <button
           type="button"
