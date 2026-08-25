@@ -2,7 +2,7 @@ import { useCallback, useReducer, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
 import { PlayControls } from './components/PlayControls';
 import { Toolbar } from './components/Toolbar';
-import { diagramReducer, initialState } from './model/diagramState';
+import { diagramReducer, hasMovedFrom, initialState } from './model/diagramState';
 import { DEFAULT_DURATION_MS, interpolatePositions } from './model/tween';
 import type { PositionMap, Tool } from './model/types';
 import { useTween } from './hooks/useTween';
@@ -36,6 +36,11 @@ export default function App() {
     if (start) dispatch({ type: 'setPositions', positions: start });
   }, [start]);
 
+  // Once the board has moved on from the captured start, re-recording would
+  // overwrite it with the arrangement the play was meant to end at, leaving a
+  // play that tweens from a position to itself and appears to do nothing.
+  const movedSinceStart = hasMovedFrom(state.tokens, start);
+
   const handleReset = useCallback(() => {
     setAnimating(null);
     dispatch({ type: 'reset' });
@@ -47,12 +52,14 @@ export default function App() {
         <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} />
         <PlayControls
           onReset={handleReset}
-          onSetStart={() => dispatch({ type: 'captureStart' })}
-          onSetEnd={() => dispatch({ type: 'captureEnd' })}
+          onRecord={() => dispatch({ type: 'captureStart' })}
+          onStop={() => dispatch({ type: 'captureEnd' })}
           onPlay={handlePlay}
           onToStart={handleToStart}
           hasStart={start !== null}
           hasEnd={end !== null}
+          canRecord={!isPlaying && !movedSinceStart}
+          canStop={!isPlaying && start !== null && movedSinceStart}
           isPlaying={isPlaying}
         />
       </main>

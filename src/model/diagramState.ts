@@ -133,6 +133,23 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
   }
 }
 
+/**
+ * Has the board changed since an arrangement was captured? Drives the recording
+ * controls: once something has moved, re-capturing the start would overwrite the
+ * recording with the arrangement it was supposed to end at.
+ */
+export function hasMovedFrom(
+  tokens: readonly Token[],
+  positions: PositionMap | null,
+): boolean {
+  if (!positions) return false;
+  if (Object.keys(positions).length !== tokens.length) return true; // added or removed
+  return tokens.some((t) => {
+    const p = positions[t.id];
+    return !p || Math.abs(p.x - t.x) > 0.01 || Math.abs(p.y - t.y) > 0.01;
+  });
+}
+
 export function capturePositions(tokens: readonly Token[]): PositionMap {
   const positions: PositionMap = {};
   for (const t of tokens) positions[t.id] = { x: t.x, y: t.y };

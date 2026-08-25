@@ -67,9 +67,16 @@ the white lines do all the shape work — plus the near-black button fill
   and that relocation undoes like any other move.
 - **A drag is one undo step.** Positions update live during the drag but commit
   once on release, so undo steps back a whole move rather than a frame of one.
-- **Captures aren't undoable.** "Set start" / "Set end" record a snapshot;
-  neither they nor the animation transport (Play, To start) push undo entries.
-  Undo is for editing the diagram, not for scrubbing the animation.
+- **Captures aren't undoable.** Record and Stop take a snapshot; neither they
+  nor the animation transport (Play, To start) push undo entries. Undo is for
+  editing the diagram, not for scrubbing the animation.
+- **Recording is one-shot per play.** The record button captures the start, then
+  locks as soon as anything moves and stays locked until New play. Pressing it
+  again mid-play used to overwrite the start with the arrangement the play was
+  meant to *end* at, leaving a play that tweened from a position to itself and
+  appeared to do nothing at all — silently, with no way to tell it had happened.
+  The button doubles as the status of the recording: Record play, then
+  Recording…, then Recorded ✓.
 - **Play always runs the captured start → end.** It snaps to the start on the
   first frame, so it replays identically no matter where the tokens sit when
   it's pressed.

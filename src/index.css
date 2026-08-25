@@ -176,6 +176,13 @@ body {
   color: var(--ink);
 }
 
+.pill-recording:disabled {
+  /* Still readable while disabled: it is showing status, not offering an action. */
+  opacity: 1;
+  background: #5b2320;
+  color: #ffd9d5;
+}
+
 .pill-primary:not(:disabled) {
   background: #2f6b4f;
 }

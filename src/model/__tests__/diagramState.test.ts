@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { diagramReducer, initialState, UNDO_DEPTH, type DiagramAction } from '../diagramState';
+import {
+  diagramReducer,
+  hasMovedFrom,
+  initialState,
+  UNDO_DEPTH,
+  type DiagramAction,
+} from '../diagramState';
 import type { DiagramState } from '../types';
 
 const run = (state: DiagramState, ...actions: DiagramAction[]) =>
@@ -176,5 +182,70 @@ describe('reset', () => {
     expect(s.strokes).toHaveLength(0);
     expect(s.start).toBeNull();
     expect(s.undoStack).toHaveLength(0);
+  });
+});
+
+describe('hasMovedFrom — the guard on re-recording', () => {
+  it('is false right after a capture', () => {
+    const s = diagramReducer(initialState(), { type: 'captureStart' });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(false);
+  });
+
+  it('is false when there is nothing captured yet', () => {
+    expect(hasMovedFrom(initialState().tokens, null)).toBe(false);
+  });
+
+  it('notices a token that moved', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    s = diagramReducer(s, { type: 'moveToken', id: s.tokens[0].id, x: 100, y: 100 });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(true);
+  });
+
+  it('ignores sub-pixel drift', () => {
+    const s = diagramReducer(initialState(), { type: 'captureStart' });
+    const nudged = s.tokens.map((t, i) => (i === 0 ? { ...t, x: t.x + 0.001 } : t));
+    expect(hasMovedFrom(nudged, s.start)).toBe(false);
+  });
+
+  it('notices a token added or removed since the capture', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    s = diagramReducer(s, { type: 'addRunner', at: { x: 10, y: 10 } });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(true);
+
+    const runner = s.tokens.at(-1)!;
+    s = diagramReducer(s, { type: 'removeToken', id: runner.id });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(false); // back to the captured set
+  });
+
+  it('stays true after the play is stopped, so recording cannot be restarted', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    s = diagramReducer(s, { type: 'moveToken', id: s.tokens[0].id, x: 100, y: 100 });
+    s = diagramReducer(s, { type: 'captureEnd' });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(true);
+  });
+
+  it('is false again after a reset, so a new play can be recorded', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    s = diagramReducer(s, { type: 'moveToken', id: s.tokens[0].id, x: 100, y: 100 });
+    s = diagramReducer(s, { type: 'reset' });
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(false);
+    expect(s.start).toBeNull();
+  });
+});
+
+describe('the bug this guard prevents', () => {
+  it('re-capturing the start after a play collapses it to nothing', () => {
+    // Record, move, stop: a real play.
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    const id = s.tokens[0].id;
+    s = diagramReducer(s, { type: 'moveToken', id, x: 100, y: 100 });
+    s = diagramReducer(s, { type: 'captureEnd' });
+    expect(s.start![id]).not.toEqual(s.end![id]);
+
+    // Pressing record again here is what silently destroyed the play.
+    const clobbered = diagramReducer(s, { type: 'captureStart' });
+    expect(clobbered.start![id]).toEqual(clobbered.end![id]);
+    // Which is exactly the state the UI now refuses to reach.
+    expect(hasMovedFrom(s.tokens, s.start)).toBe(true);
   });
 });

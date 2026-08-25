@@ -1,25 +1,32 @@
 interface Props {
   onReset: () => void;
-  onSetStart: () => void;
-  onSetEnd: () => void;
+  onRecord: () => void;
+  onStop: () => void;
   onPlay: () => void;
   onToStart: () => void;
   hasStart: boolean;
   hasEnd: boolean;
+  /** False once the board has moved on from the captured start. */
+  canRecord: boolean;
+  canStop: boolean;
   isPlaying: boolean;
 }
 
 /** Floats over the bottom-left of the field, clear of the tool bar. */
 export function PlayControls({
   onReset,
-  onSetStart,
-  onSetEnd,
+  onRecord,
+  onStop,
   onPlay,
   onToStart,
   hasStart,
   hasEnd,
+  canRecord,
+  canStop,
   isPlaying,
 }: Props) {
+  // The record button doubles as the status of the recording.
+  const recordLabel = !hasStart ? 'Record play' : hasEnd ? 'Recorded ✓' : 'Recording…';
   return (
     <div className="play-controls">
       <button type="button" className="pill pill-light" onClick={onReset}>
@@ -28,21 +35,21 @@ export function PlayControls({
       <div className="pill-group">
         <button
           type="button"
-          className="pill"
-          onClick={onSetStart}
-          disabled={isPlaying}
-          aria-label="Capture the start arrangement"
+          className={hasStart && !hasEnd ? 'pill pill-recording' : 'pill'}
+          onClick={onRecord}
+          disabled={!canRecord}
+          aria-label="Record a play from where the players stand now"
         >
-          Start{hasStart ? ' ✓' : ''}
+          {recordLabel}
         </button>
         <button
           type="button"
           className="pill"
-          onClick={onSetEnd}
-          disabled={isPlaying}
-          aria-label="Capture the end arrangement"
+          onClick={onStop}
+          disabled={!canStop}
+          aria-label="Stop recording and keep this as the end of the play"
         >
-          End{hasEnd ? ' ✓' : ''}
+          Stop
         </button>
         <button
           type="button"
