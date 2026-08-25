@@ -239,16 +239,60 @@ body {
   color: var(--pill-ink);
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
   pointer-events: none;
+  max-width: min(36rem, calc(100% - 1.4rem));
 }
 
 .play-caption strong {
   font-size: 0.95rem;
 }
 
-.play-caption span {
+.play-caption > span {
   font-size: 0.8rem;
   opacity: 0.85;
-  max-width: 46ch;
+  max-width: 52ch;
+}
+
+.play-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.35rem;
+  max-height: min(28vh, 14rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+  padding: 0.35rem 0.45rem;
+  border-radius: 10px;
+  background: rgb(0 0 0 / 0.42);
+  text-shadow: none;
+}
+
+.play-role {
+  display: grid;
+  grid-template-columns: 2.1rem 1fr;
+  gap: 0.35rem;
+  align-items: start;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: rgb(255 255 255 / 0.88);
+}
+
+.play-role-label {
+  font-weight: 700;
+  color: #fff;
+}
+
+.play-role-support {
+  opacity: 0.78;
+}
+
+.play-role-active {
+  color: #fff;
+  opacity: 1;
+}
+
+.play-role-active .play-role-label {
+  color: #ffe08a;
 }
 
 .library-backdrop {
@@ -438,12 +482,16 @@ body {
     gap: 0.3rem;
   }
 
-  .play-caption span {
+  .play-caption > span {
     /* Keep the coaching point from taking over a phone screen. */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .play-roles {
+    max-height: min(22vh, 10rem);
   }
 
   .pill {

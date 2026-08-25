@@ -4,7 +4,7 @@ import { PLAY_CATEGORIES } from './plays';
 import type { BaseName, PlayDef, Spot } from './playTypes';
 
 /**
- * What one position does on one play.
+ * What one position does on one play — and why.
  *
  * Almost all of it is read off the play by way of defense.ts: if the ball comes
  * to you, you field it and throw where it goes next; if the throw is coming to
@@ -52,9 +52,9 @@ const BASE_NAMES: Record<BaseName, string> = {
 };
 
 export interface Role {
-  /** Does this position have something to do here? */
+  /** Does this position have an active job on the ball or a bag? */
   involved: boolean;
-  /** What they do, addressed to the player. */
+  /** What they do and why, addressed to the player. */
   text: string;
 }
 
@@ -142,6 +142,11 @@ export function roleFor(play: PlayDef, label: string): Role {
   // everything.
   const involved = job.kind !== 'idle' && job.kind !== 'backup';
   return { involved, text: textFor(play, job) };
+}
+
+/** Every position's job on this play, in field order. */
+export function rolesForPlay(play: PlayDef): { label: string; role: Role }[] {
+  return POSITIONS.map((label) => ({ label, role: roleFor(play, label) }));
 }
 
 /**

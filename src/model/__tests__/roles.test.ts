@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { POSITIONS, POSITION_NAMES, POSITION_PLAY_LIMIT, playsForPosition, roleFor } from '../roles';
+import {
+  POSITIONS,
+  POSITION_NAMES,
+  POSITION_PLAY_LIMIT,
+  playsForPosition,
+  roleFor,
+  rolesForPlay,
+} from '../roles';
 import { PLAYS, PLAY_CATEGORIES } from '../plays';
 
 const play = (id: string) => PLAYS.find((p) => p.id === id)!;
@@ -57,6 +64,18 @@ describe('roleFor', () => {
     const idle = roleFor(play('steal-second'), 'RF');
     expect(idle.involved).toBe(false);
     expect(idle.text).toContain('No job');
+  });
+
+  it('lists every position on every play for the roster dock', () => {
+    for (const play of PLAYS) {
+      const roles = rolesForPlay(play);
+      expect(roles).toHaveLength(9);
+      for (const { label, role } of roles) {
+        expect(POSITIONS).toContain(label);
+        expect(role.text.length, `${play.id} / ${label}`).toBeGreaterThan(10);
+        expect(role.text.trim().endsWith('.'), `${play.id} / ${label}: ${role.text}`).toBe(true);
+      }
+    }
   });
 
   it('never falls back to the vague wording — every job is derived or written', () => {
