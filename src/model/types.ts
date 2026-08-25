@@ -30,6 +30,13 @@ export interface DiagramState {
    * throw or carry. Empty until the coach draws one.
    */
   ballRoute: Point[];
+  /**
+   * Runner token id -> the base paths that runner covers. A runner cannot tween
+   * in a straight line: a man scoring from second goes by way of third, not
+   * across the mound. Only library plays carry these; a hand-recorded play is
+   * whatever the coach dragged.
+   */
+  runnerRoutes: Record<string, Point[]>;
   /** Captured animation states. Null until the coach captures them. */
   start: PositionMap | null;
   end: PositionMap | null;

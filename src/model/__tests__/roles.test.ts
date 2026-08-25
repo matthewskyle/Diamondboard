@@ -12,26 +12,32 @@ import { PLAYS, PLAY_CATEGORIES } from '../plays';
 const play = (id: string) => PLAYS.find((p) => p.id === id)!;
 
 describe('roleFor', () => {
-  it('tells a fielder who fields the ball where to throw it, and why', () => {
-    const role = roleFor(play('6-3'), 'SS');
-    expect(role.involved).toBe(true);
-    expect(role.text).toContain('Field it and throw to first base');
-    expect(role.text).toMatch(/surest out|surest play/i);
+  it('tells a fielder who fields the ball where to throw it', () => {
+    expect(roleFor(play('6-3'), 'SS')).toEqual({
+      involved: true,
+      text: 'Field it and throw to first base.',
+    });
   });
 
   it('knows the difference between fielding a ball and taking a throw', () => {
+    // On the 6-4-3 the shortstop fields it; the ball reaches first as a throw.
     expect(roleFor(play('6-4-3'), 'SS').text).toContain('Field it');
     expect(roleFor(play('3-6-1'), 'P').text).toContain('Take the throw');
   });
 
   it('names a fielder as the target when the throw is to a person', () => {
-    expect(roleFor(play('3-1'), '1B').text).toContain('Field it and throw to the pitcher');
+    expect(roleFor(play('3-1'), '1B').text).toBe('Field it and throw to the pitcher.');
   });
 
-  it('says to cover the bag and explains why', () => {
-    expect(roleFor(play('6-4-3'), '1B').text).toContain('Cover first base');
-    expect(roleFor(play('6-4-3'), '1B').text).toMatch(/target|beat the batter/i);
-    expect(roleFor(play('steal-second'), 'SS').text).toContain('Cover second base');
+  it('says to cover the bag, and whether a throw is coming to it', () => {
+    // On the 6-4-3 the relay finishes at first, so covering it means taking a
+    // throw. On a steal of third the shortstop takes the bag behind the play and
+    // may never be thrown to.
+    expect(roleFor(play('6-4-3'), '1B')).toEqual({
+      involved: true,
+      text: 'Cover first base and take the throw.',
+    });
+    expect(roleFor(play('cut-home-left'), 'SS').text).toBe('Cover third base.');
   });
 
   it('treats a catch that ends with a throw as the whole play', () => {
@@ -54,22 +60,19 @@ describe('roleFor', () => {
     expect(roleFor(play('pitcher-backs-up'), 'P').text).toContain('behind third base');
   });
 
-  it('still gives supporting positions a real job and a reason', () => {
+  it('is honest when a position has nothing to do', () => {
     const idle = roleFor(play('steal-second'), 'RF');
     expect(idle.involved).toBe(false);
-    expect(idle.text).toMatch(/back up|hold|watch/i);
-    expect(idle.text.length).toBeGreaterThan(40);
+    expect(idle.text).toContain('No job');
   });
 
-  it('explains what every position does on every play', () => {
+  it('lists every position on every play for the roster dock', () => {
     for (const play of PLAYS) {
       const roles = rolesForPlay(play);
       expect(roles).toHaveLength(9);
       for (const { label, role } of roles) {
-        expect(role.text.length, `${play.id} / ${label}`).toBeGreaterThan(24);
-        expect(role.text, `${play.id} / ${label}`).toMatch(
-          /—| so | because | before | if |in case| and /i,
-        );
+        expect(POSITIONS).toContain(label);
+        expect(role.text.length, `${play.id} / ${label}`).toBeGreaterThan(10);
         expect(role.text.trim().endsWith('.'), `${play.id} / ${label}: ${role.text}`).toBe(true);
       }
     }
@@ -105,6 +108,8 @@ describe('playsForPosition', () => {
   });
 
   it('is ordered the way the library displays it, so the count matches the list', () => {
+    // Grouped by category, and in library order within each group. Stepping to
+    // "4 of 25" has to land on the fourth play a coach can actually see.
     for (const label of POSITIONS) {
       const plays = playsForPosition(PLAYS, label);
       const categoryOrder = plays.map((p) => PLAY_CATEGORIES.indexOf(p.category));

@@ -23,6 +23,7 @@ export function initialState(): DiagramState {
     tokens: defaultTokens(),
     strokes: [],
     ballRoute: [],
+    runnerRoutes: {},
     start: null,
     end: null,
     undoStack: [],
@@ -50,6 +51,7 @@ export type DiagramAction =
       type: 'loadPlay';
       tokens: Token[];
       ballRoute: Point[];
+      runnerRoutes: Record<string, Point[]>;
       start: PositionMap;
       end: PositionMap;
     };
@@ -154,8 +156,10 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       };
 
     case 'captureStart':
-      // Re-record throws the old play away: new start, no end yet.
-      return { ...state, start: capturePositions(state.tokens), end: null };
+      // Re-record throws the old play away: new start, no end yet, and none of
+      // the loaded play's base paths — from here the runners go where they are
+      // dragged.
+      return { ...state, start: capturePositions(state.tokens), end: null, runnerRoutes: {} };
 
     case 'captureEnd':
       return { ...state, end: capturePositions(state.tokens) };
@@ -192,6 +196,7 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
         tokens: action.tokens,
         strokes: [],
         ballRoute: action.ballRoute,
+        runnerRoutes: action.runnerRoutes,
         start: action.start,
         end: action.end,
         undoStack: [],

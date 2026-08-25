@@ -1,57 +1,29 @@
 import { BASES, MOUND, defaultFielderPosition, FIELDER_SPOTS, pointAt } from './fieldGeometry';
 import type { Point } from './path';
+import { basesBetween, leadOff, runnerRoute } from './baseRunning';
+import { assignDefense } from './defense';
 import { capturePositions, defaultTokens, nextId } from './diagramState';
 import { MORE_PLAYS } from './morePlays';
+import type { BaseName, PlayDef, Spot } from './playTypes';
+import { feetOf } from './spots';
 import type { PositionMap, Token } from './types';
 
 /**
  * A library of situations a 10-11U team works on. Each play is written the way
- * a coach would describe it — who moves where, and where the ball goes — and
- * compiled into the same arrangement-plus-route the board already animates.
+ * a coach would describe it — what the batter did, who goes to the ball, and
+ * where the ball goes — and compiled into the same arrangement-plus-route the
+ * board already animates. Cut men, base coverage and backups are not written
+ * here: they are the same on every play, so defense.ts works them out.
  *
  * Positions are given in real feet and bearings (0 is straight to centre
  * field, negative toward third), so a play reads as baseball rather than as
  * coordinates, and stays correct if the field's drawing ever changes.
  */
 
-export type Spot =
-  /** A base, or the pitcher's mound. */
-  | { base: 'home' | 'first' | 'second' | 'third' | 'mound' }
-  /** Anywhere on the field: distance from home plate, and bearing. */
-  | { at: [feet: number, angle: number] }
-  /** Wherever a fielder ends up — a throw goes *to the shortstop*. */
-  | { fielder: string };
-
-export interface PlayDef {
-  id: string;
-  name: string;
-  /** The situation, as a coach would set it up. */
-  situation: string;
-  category: string;
-  /** What the players should take away. */
-  teaches: string;
-  /**
-   * What a given position does here, in their own words, for the jobs that
-   * cannot be read off the play — charging, backing up, giving way. Handling
-   * the ball and covering a base are derived instead. See roles.ts.
-   */
-  roles?: Record<string, string>;
-  /**
-   * Where the batter-runner finishes, for a ball put in play. Omitted when
-   * there is no batter running — a pitch, or a ball the catcher already has.
-   * Caught fly balls give a spot up the line: he ran, he just did not make it.
-   */
-  batterTo?: Spot;
-  /** Where the other runners start, and where they finish. */
-  runners?: { from: Spot; to?: Spot }[];
-  /** Fielders that move, and where they end. Everyone else holds. */
-  moves?: Record<string, Spot>;
-  /** The ball's journey, first point to last. */
-  ball: Spot[];
-}
+export type { BaseName, PlayDef, Spot } from './playTypes';
 
 /** Beside the plate on the first base side, clear of the ball, ready to run. */
-const BATTERS_BOX: Spot = { at: [13, 45] };
+export const BATTERS_BOX: Spot = { at: [13, 45] };
 
 const BASE_POINTS: Record<string, Point> = {
   home: BASES.home,
@@ -70,11 +42,13 @@ function resolve(spot: Spot, ends: Record<string, Point>): Point {
 export interface CompiledPlay {
   tokens: Token[];
   ballRoute: Point[];
+  /** Runner token id -> the base paths he runs, rather than a straight line. */
+  runnerRoutes: Record<string, Point[]>;
   start: PositionMap;
   end: PositionMap;
 }
 
-/** Turn a play into the arrangements and route the board animates. */
+/** Turn a play into the arrangements and routes the board animates. */
 export function compilePlay(def: PlayDef): CompiledPlay {
   const tokens = defaultTokens();
 
@@ -82,11 +56,12 @@ export function compilePlay(def: PlayDef): CompiledPlay {
   // a fielder's finishing spot rather than to where they started.
   const fielderEnds: Record<string, Point> = {};
   for (const spot of FIELDER_SPOTS) fielderEnds[spot.label] = defaultFielderPosition(spot);
-  for (const [label, target] of Object.entries(def.moves ?? {})) {
+  for (const [label, target] of Object.entries(assignDefense(def).spots)) {
     fielderEnds[label] = resolve(target, fielderEnds);
   }
 
   const runnerEnds: Record<string, Point> = {};
+  const runnerRoutes: Record<string, Point[]> = {};
   const runners = [
     // The batter leads off the list, because that is the order he exists in.
     // He stands in the box rather than on the plate: a batted ball starts at
@@ -95,10 +70,21 @@ export function compilePlay(def: PlayDef): CompiledPlay {
     ...(def.runners ?? []),
   ];
   for (const runner of runners) {
-    const from = resolve(runner.from, fielderEnds);
-    const token: Token = { id: nextId('runner'), type: 'runner', x: from.x, y: from.y };
+    // A runner sent back to the base he is standing on was never standing on
+    // it: he had a lead, and the play is him getting back. A runner who is
+    // going somewhere had one too — nobody breaks from a standstill on the bag.
+    const diveBack = sameBase(runner.from, runner.to);
+    const bag = startOf(runner, diveBack);
+    const from = bag ? leadOff(bag) : feetOf(runner.from)!;
+    const to = runner.to ? feetOf(runner.to)! : from;
+    // The route decides where he starts and finishes, rather than the other way
+    // round, so the two can never disagree about where the bag is.
+    const route = runnerRoute(from, to, runner.to && !diveBack ? basesBetween(from, to) : []);
+    const start = route[0];
+    const token: Token = { id: nextId('runner'), type: 'runner', x: start.x, y: start.y };
     tokens.push(token);
-    runnerEnds[token.id] = runner.to ? resolve(runner.to, fielderEnds) : from;
+    runnerEnds[token.id] = route[route.length - 1];
+    runnerRoutes[token.id] = route;
   }
 
   const ballRoute = def.ball.map((spot) => resolve(spot, fielderEnds));
@@ -117,7 +103,24 @@ export function compilePlay(def: PlayDef): CompiledPlay {
   }
   end[ball.id] = ballRoute[ballRoute.length - 1];
 
-  return { tokens, ballRoute, start, end };
+  return { tokens, ballRoute, runnerRoutes, start, end };
+}
+
+/** The bag a runner both starts and finishes on, if it is the same one. */
+function sameBase(from: Spot, to: Spot | undefined): BaseName | null {
+  if (!to || !('base' in from) || !('base' in to)) return null;
+  return from.base === to.base ? from.base : null;
+}
+
+/**
+ * The bag a runner takes his lead off, if he has one to take. A man standing on
+ * a base with the pitch coming is standing off it; the batter is in the box and
+ * a runner already caught between bags is wherever the play left him.
+ */
+function startOf(runner: { from: Spot; to?: Spot }, diveBack: BaseName | null): BaseName | null {
+  if (diveBack) return diveBack;
+  if (!('base' in runner.from) || runner.from.base === 'home') return null;
+  return runner.from.base;
 }
 
 // Where balls are commonly put in play, so the plays below read consistently.
@@ -156,11 +159,8 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Nobody on. Ground ball in the hole at short.',
     category: 'Routine outs',
     teaches: 'Field it, set your feet, then throw. First baseman gets to the bag early.',
-    roles: {
-      '2B': 'Get over toward second in case he tries to take an extra base.',
-    },
     batterTo: { base: 'first' },
-    moves: { SS: HIT.holeAtShort, '1B': { base: 'first' }, '2B': { at: [150, 10] } },
+    moves: { SS: HIT.holeAtShort, '1B': { base: 'first' }, '2B': { base: 'second' } },
     ball: [{ base: 'home' }, { fielder: 'SS' }, { base: 'first' }],
   },
   {
@@ -266,7 +266,6 @@ export const PLAYS: readonly PlayDef[] = [
     teaches: 'Corners charge, second baseman covers first. Somebody has to take the bag.',
     roles: {
       '1B': 'Charge the plate. The second baseman has first base behind you.',
-      'SS': 'Slide toward second in case the runner keeps going.',
       '3B': 'Charge the line and take anything you can get to.',
     },
     batterTo: { base: 'first' },
@@ -276,7 +275,7 @@ export const PLAYS: readonly PlayDef[] = [
       '3B': { at: [55, -30] },
       '1B': { at: [60, 32] },
       '2B': { base: 'first' },
-      SS: { at: [120, -22] },
+      SS: { base: 'second' },
     },
     ball: [{ base: 'home' }, { fielder: 'P' }, { base: 'first' }],
   },
@@ -316,18 +315,18 @@ export const PLAYS: readonly PlayDef[] = [
     teaches: 'Third baseman is the cut on throws home from left. Throw through him, chest high.',
     batterTo: { base: 'first' },
     runners: [{ from: { base: 'second' }, to: { base: 'home' } }],
-    moves: { LF: HIT.singleLeft, '3B': { at: [120, -22] }, SS: { base: 'third' } },
+    moves: { LF: HIT.singleLeft },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { fielder: '3B' }, { base: 'home' }],
   },
   {
     id: 'cut-third-right',
     name: 'Single to right — throw to third',
-    situation: 'Runner on first. Base hit to right; the runner takes second and looks for third.',
+    situation: 'Runner on first. Base hit to right; he takes second and looks at third.',
     category: 'Cutoffs and relays',
-    teaches: 'Shortstop lines up the cut to third. A firm throw keeps the runner at second.',
+    teaches: 'The shortstop lines up every throw to third, even from right field — he is thirty feet closer to the spot than the second baseman is. The throw is what makes the runner stop at second.',
     batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
-    moves: { RF: HIT.singleRight, SS: { at: [175, 6] }, '3B': { base: 'third' } },
+    moves: { RF: HIT.singleRight },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: 'SS' }, { base: 'third' }],
   },
   {
@@ -335,17 +334,9 @@ export const PLAYS: readonly PlayDef[] = [
     name: 'Ball in the gap — relay',
     situation: 'Ball splits left and centre. Batter is running hard.',
     category: 'Cutoffs and relays',
-    teaches: 'Shortstop sprints out as the relay, second baseman trails behind him.',
-    roles: {
-      'CF': 'Get over and help the left fielder find the ball.',
-    },
+    teaches: 'Shortstop sprints out as the relay man, so the throw in is one he can turn on.',
     batterTo: { base: 'second' },
-    moves: {
-      LF: HIT.gapLeftCenter,
-      CF: { at: [320, -12] },
-      SS: { at: [215, -18] },
-      '2B': { base: 'second' },
-    },
+    moves: { LF: HIT.gapLeftCenter },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { fielder: 'SS' }, { base: 'second' }],
   },
   {
@@ -353,12 +344,9 @@ export const PLAYS: readonly PlayDef[] = [
     name: 'Base hit to centre — throw to second',
     situation: 'Base hit up the middle. Batter thinks about stretching it.',
     category: 'Cutoffs and relays',
-    teaches: 'Shortstop covers on a ball hit to centre, second baseman backs him up.',
-    roles: {
-      '2B': 'Back up the throw to second.',
-    },
+    teaches: 'Shortstop covers on a ball hit to centre; the second baseman lines the throw up in front of him.',
     batterTo: { base: 'first' },
-    moves: { CF: HIT.singleCenter, SS: { base: 'second' }, '2B': { at: [200, 14] } },
+    moves: { CF: HIT.singleCenter },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { base: 'second' }],
   },
 
@@ -371,7 +359,7 @@ export const PLAYS: readonly PlayDef[] = [
     teaches: 'Catch it moving toward the plate. First baseman lines up the cut.',
     batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
-    moves: { RF: HIT.flyRight, '1B': { at: [120, 20] } },
+    moves: { RF: HIT.flyRight },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: '1B' }, { base: 'home' }],
   },
   {
@@ -382,7 +370,7 @@ export const PLAYS: readonly PlayDef[] = [
     teaches: 'Centre fielder gets behind it so he can catch it going forward.',
     batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'third' }, to: { base: 'home' } }],
-    moves: { CF: HIT.flyCenter, '1B': { at: [125, 12] } },
+    moves: { CF: HIT.flyCenter },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { fielder: '1B' }, { base: 'home' }],
   },
   {
@@ -477,13 +465,9 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runner on first, base hit to left field; the runner takes second and looks for third.',
     category: 'Pitcher and catcher',
     teaches: 'The pitcher has a job on every ball in play: get behind the base the throw is going to.',
-    roles: {
-      'P': 'Get behind third base, deep enough to catch anything that gets by.',
-      'SS': 'Line up the cut on the throw to third.',
-    },
     batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
-    moves: { LF: HIT.singleLeft, '3B': { base: 'third' }, SS: { at: [170, -24] }, P: { at: [150, -48] } },
+    moves: { LF: HIT.singleLeft },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { base: 'third' }],
   },
 
@@ -647,19 +631,10 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Ball splits right and centre with a runner on first; he takes second and is sent to third.',
     category: 'Cutoffs and relays',
     teaches: 'Ball to the right side, the second baseman is the relay and the shortstop covers.',
-    roles: {
-      'CF': 'Get to the gap and back up the right fielder.',
-    },
     batterTo: { base: 'second' },
     // Gap double: the lead runner can legitimately make third after touching second.
     runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
-    moves: {
-      RF: HIT.gapRightCenter,
-      CF: { at: [322, 10] },
-      '2B': { at: [214, 14] },
-      SS: { base: 'second' },
-      '3B': { base: 'third' },
-    },
+    moves: { RF: HIT.gapRightCenter },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: '2B' }, { base: 'third' }],
   },
   {
@@ -672,7 +647,9 @@ export const PLAYS: readonly PlayDef[] = [
     runners: [
       { from: { base: 'second' }, to: { base: 'home' } },
     ],
-    moves: { LF: HIT.singleLeft, '3B': { at: [118, -20] }, SS: { base: 'second' } },
+    moves: { LF: HIT.singleLeft },
+    // Lined up for the plate; the cut man is the one who chose second instead.
+    aim: 'home',
     ball: [{ base: 'home' }, { fielder: 'LF' }, { fielder: '3B' }, { base: 'second' }],
   },
   {
@@ -682,12 +659,7 @@ export const PLAYS: readonly PlayDef[] = [
     category: 'Cutoffs and relays',
     teaches: 'Get to where it is going, not where it hit. Relay man goes out to meet the throw.',
     batterTo: { base: 'third' },
-    moves: {
-      RF: HIT.offTheWallRight,
-      '2B': { at: [222, 20] },
-      SS: { base: 'second' },
-      '3B': { base: 'third' },
-    },
+    moves: { RF: HIT.offTheWallRight },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: '2B' }, { base: 'third' }],
   },
 
@@ -699,7 +671,7 @@ export const PLAYS: readonly PlayDef[] = [
     teaches: 'Deep enough and he goes. Shortstop lines up the throw to third.',
     batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'second' }, to: { base: 'third' } }],
-    moves: { CF: { at: [322, -6] }, SS: { at: [200, -16] }, '3B': { base: 'third' } },
+    moves: { CF: { at: [322, -6] } },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { fielder: 'SS' }, { base: 'third' }],
   },
   {
@@ -726,11 +698,10 @@ export const PLAYS: readonly PlayDef[] = [
     roles: {
       LF: 'Peel off and back up the centre fielder.',
       CF: 'Call it, catch it, and throw to second before the runner can get back.',
-      SS: 'Cover second and be ready for the throw behind the runner.',
     },
     batterTo: { at: [45, 45] },
     runners: [{ from: { base: 'first' }, to: { base: 'first' } }],
-    moves: { CF: { at: [300, -16] }, LF: { at: [268, -26] }, SS: { base: 'second' } },
+    moves: { CF: { at: [300, -16] }, LF: { at: [268, -26] } },
     ball: [{ base: 'home' }, { fielder: 'CF' }, { base: 'second' }],
   },
 
@@ -786,13 +757,9 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Base hit to left with a runner scoring from second.',
     category: 'Pitcher and catcher',
     teaches: 'Throw home means the pitcher is behind the plate, deep enough to matter.',
-    roles: {
-      'P': 'Get behind the plate, deep, in case the throw gets by.',
-      '3B': 'Line up the cut, and let it through if the throw is on line.',
-    },
     batterTo: { base: 'first' },
     runners: [{ from: { base: 'second' }, to: { base: 'home' } }],
-    moves: { LF: HIT.chargingLeft, P: HIT.behindThePlate, '3B': { at: [118, -20] } },
+    moves: { LF: HIT.chargingLeft },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { base: 'home' }],
   },
   {
