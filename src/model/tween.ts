@@ -1,7 +1,33 @@
 import type { Point } from './path';
 import type { PositionMap } from './types';
 
-export const DEFAULT_DURATION_MS = 1800;
+/**
+ * How long a play runs at 1x. Half the rate the board originally used, because
+ * full speed reads as a blur when the point is to see who went where; the old
+ * rate is still there as 2x.
+ */
+export const BASE_DURATION_MS = 3600;
+
+/** Slow, default, and the board's original pace. */
+export const PLAYBACK_SPEEDS = [0.5, 1, 2] as const;
+export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
+
+export function durationForSpeed(speed: number): number {
+  return BASE_DURATION_MS / speed;
+}
+
+/**
+ * How long the ball is held at each stop, as a share of the whole playback, so
+ * a throw arriving reads as someone catching it rather than the ball glancing
+ * off. Capped in total, or a long relay would be more waiting than movement.
+ */
+export const DWELL_SHARE_PER_STOP = 0.12;
+export const MAX_DWELL_SHARE = 0.45;
+
+export function dwellShareFor(stops: number): number {
+  if (stops <= 0) return 0;
+  return Math.min(stops * DWELL_SHARE_PER_STOP, MAX_DWELL_SHARE);
+}
 
 export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -36,9 +62,17 @@ export function interpolatePositions(
 
 /**
  * A point a fraction of the way along a polyline, measured by distance rather
- * than by leg, so the travel speed is constant across legs of different length.
+ * than by leg, so travel speed is constant across legs of different length.
+ *
+ * `dwellShare` holds the ball at each intermediate stop for a slice of the
+ * timeline — the beat where a fielder actually catches it. The share is split
+ * evenly between stops; the rest of the time is travel.
  */
-export function pointAlongPath(points: readonly Point[], t: number): Point {
+export function pointAlongPath(
+  points: readonly Point[],
+  t: number,
+  dwellShare = 0,
+): Point {
   if (points.length === 0) return { x: 0, y: 0 };
   if (points.length === 1) return points[0];
 
@@ -51,13 +85,23 @@ export function pointAlongPath(points: readonly Point[], t: number): Point {
   }
   if (total === 0) return points[0];
 
-  let travelled = clamp01(t) * total;
+  const stops = points.length - 2; // every point but the origin and the last
+  const dwell = stops > 0 ? clamp01(dwellShare) : 0;
+  const perStop = stops > 0 ? dwell / stops : 0;
+  const travelShare = 1 - dwell;
+
+  let remaining = clamp01(t);
   for (let i = 0; i < legs.length; i++) {
-    if (travelled <= legs[i] || i === legs.length - 1) {
-      const along = legs[i] === 0 ? 1 : Math.min(travelled / legs[i], 1);
+    const legTime = travelShare * (legs[i] / total);
+    if (remaining <= legTime || i === legs.length - 1) {
+      const along = legTime === 0 ? 1 : Math.min(remaining / legTime, 1);
       return lerpPoint(points[i], points[i + 1], along);
     }
-    travelled -= legs[i];
+    remaining -= legTime;
+
+    // Held at this stop until its dwell elapses.
+    if (remaining <= perStop) return points[i + 1];
+    remaining -= perStop;
   }
   return points[points.length - 1];
 }

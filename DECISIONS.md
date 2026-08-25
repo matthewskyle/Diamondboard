@@ -85,6 +85,14 @@ the white lines do all the shape work — plus the near-black button fill
   polyline anchored where it was drawn, so it stays put when the ball moves and
   doesn't trail backwards during playback. It renders whether or not anyone
   presses Play, which is how a coach draws it on a whiteboard anyway.
+- **Playback runs at half the old rate by default**, with 0.5×, 1× and 2× on a
+  button that steps through them. Full speed reads as a blur when the point is
+  to see who went where; the board's original pace is still there as 2×.
+- **The ball waits at each stop.** A throw arriving and leaving in the same
+  instant reads as the ball glancing off, not as somebody catching it, so the
+  ball holds at every intermediate stop — 12% of the playback each, capped at
+  45% in total so a long relay stays mostly movement. Fielders keep moving
+  through the pause: the ball is what is being caught.
 - **A library of 25 set plays.** SPEC.md §1 ruled template plays out of Phase 1;
   that is superseded. Each is written in real feet and bearings — who moves
   where, and where the ball goes — and compiled into the same arrangement and

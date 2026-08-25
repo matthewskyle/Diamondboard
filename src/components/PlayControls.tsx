@@ -1,3 +1,5 @@
+import { PLAYBACK_SPEEDS, type PlaybackSpeed } from '../model/tween';
+
 export type RecordState = 'idle' | 'recording' | 'recorded';
 
 interface Props {
@@ -9,6 +11,8 @@ interface Props {
   recordState: RecordState;
   canPlay: boolean;
   canRewind: boolean;
+  speed: PlaybackSpeed;
+  onSpeedChange: (speed: PlaybackSpeed) => void;
   isPlaying: boolean;
 }
 
@@ -35,8 +39,12 @@ export function PlayControls({
   recordState,
   canPlay,
   canRewind,
+  speed,
+  onSpeedChange,
   isPlaying,
 }: Props) {
+  // One button that steps through the speeds, so the bar stays thumb-sized.
+  const nextSpeed = PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(speed) + 1) % PLAYBACK_SPEEDS.length];
   return (
     <div className="play-controls">
       <div className="pill-group">
@@ -73,6 +81,15 @@ export function PlayControls({
           aria-label="Return to the start of the play"
         >
           ⏮
+        </button>
+        <button
+          type="button"
+          className="pill pill-speed"
+          onClick={() => onSpeedChange(nextSpeed)}
+          disabled={isPlaying}
+          aria-label={`Playback speed ${speed}x — tap for ${nextSpeed}x`}
+        >
+          {speed}×
         </button>
       </div>
     </div>
