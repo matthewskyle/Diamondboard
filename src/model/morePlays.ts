@@ -165,7 +165,10 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       runners: [{ from: SECOND, to: HOME }],
       cutoffs: [meta.cutHome],
       target: HOME,
-      roles: { C: 'Set up the plate early and receive the throw to finish the play.' },
+      roles: {
+        C: 'Set up the plate early and receive the throw to finish the play.',
+        P: 'Back up the plate in case the throw gets by.',
+      },
       extraMoves: { [meta.backupHome.label]: meta.backupHome.spot },
     }),
     makeRelayPlay({
@@ -202,7 +205,7 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       fieldSpot: meta.shallow,
       batterTo: SECOND,
       target: SECOND,
-      extraMoves: { [meta.relaySecond.label]: meta.relaySecond.spot },
+      extraMoves: { [meta.relaySecond.label]: SECOND },
     }),
     makeRelayPlay({
       id: `${meta.prefix}-gap-second`,
@@ -214,6 +217,7 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       batterTo: SECOND,
       cutoffs: [meta.relaySecond],
       target: SECOND,
+      roles: { [meta.backupGap.label]: 'Back up the relay from the gap.' },
       extraMoves: { [meta.backupGap.label]: meta.backupGap.spot },
     }),
     makeRelayPlay({
@@ -227,6 +231,7 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       runners: [{ from: FIRST, to: THIRD }],
       cutoffs: [meta.relaySecond],
       target: THIRD,
+      roles: { [meta.backupGap.label]: 'Trail the relay and keep the ball in front.' },
       extraMoves: { [meta.support.label]: meta.support.spot, [meta.backupGap.label]: meta.backupGap.spot },
     }),
     makeRelayPlay({
@@ -252,7 +257,10 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       runners: [{ from: SECOND, to: HOME }],
       cutoffs: [meta.relaySecond, meta.cutHome],
       target: HOME,
-      roles: { C: 'Move up the line, show a target, and receive the relay at the plate.' },
+      roles: {
+        C: 'Move up the line, show a target, and receive the relay at the plate.',
+        P: 'Back up the plate on the long relay from the wall.',
+      },
       extraMoves: { [meta.backupHome.label]: meta.backupHome.spot },
     }),
     makeRelayPlay({
@@ -290,7 +298,10 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       runners: [{ from: SECOND, to: HOME }],
       cutoffs: [meta.relaySecond, meta.cutHome],
       target: HOME,
-      roles: { C: 'Get to the plate and line up the long relay home.' },
+      roles: {
+        C: 'Get to the plate and line up the long relay home.',
+        P: 'Back up the plate because the longest throw on the field is coming in.',
+      },
       extraMoves: { [meta.backupHome.label]: meta.backupHome.spot },
     }),
     makeRelayPlay({
@@ -326,7 +337,10 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       runners: [{ from: THIRD, to: HOME }],
       cut: meta.cutHome,
       target: HOME,
-      roles: { C: 'Set your feet at the plate and be ready for the tag play.' },
+      roles: {
+        C: 'Set your feet at the plate and be ready for the tag play.',
+        P: 'Back up the plate in case the throw carries through.',
+      },
       extraMoves: { [meta.backupHome.label]: meta.backupHome.spot },
     }),
     makeFlyPlay({
@@ -503,6 +517,7 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second goes early and the defence is ready for it.',
     category: 'Runners moving',
     teaches: 'Third baseman beats the runner there and the shortstop trails the throw.',
+    roles: { SS: 'Back up the throw to third.' },
     runners: [{ from: SECOND, to: THIRD }],
     moves: { '3B': THIRD, SS: SPOTS.cutSSLeft },
     ball: [MOUND, HOME, THIRD],
@@ -515,7 +530,7 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     teaches: 'Catcher recovers and comes up fast enough to stop the extra base.',
     runners: [{ from: FIRST, to: SECOND }],
     moves: { C: SPOTS.passedBallFirst, SS: SECOND },
-    ball: [MOUND, SPOTS.passedBallFirst, SECOND],
+    ball: [MOUND, { fielder: 'C' }, SECOND],
   },
   {
     id: 'catcher-passed-ball-home',
@@ -525,7 +540,7 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     teaches: 'The catcher gets it and throws home while the pitcher returns to the plate.',
     runners: [{ from: THIRD, to: HOME }],
     moves: { C: SPOTS.passedBall, P: HOME },
-    ball: [MOUND, SPOTS.passedBall, HOME],
+    ball: [MOUND, { fielder: 'C' }, HOME],
   },
   {
     id: 'catcher-pop-fence',
@@ -593,6 +608,7 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     situation: 'Ground ball hugs the first-base line and the throw may pull the fielder.',
     category: 'Pitcher and catcher',
     teaches: 'Pitcher never watches the play — he is behind first in case the throw gets away.',
+    roles: { P: 'Back up first base in case the throw pulls the fielder.' },
     batterTo: FIRST,
     moves: { '1B': SPOTS.firstHot, P: SPOTS.deep1B },
     ball: [HOME, { fielder: '1B' }, FIRST],
@@ -603,6 +619,7 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second. Ball hit to centre and the throw comes to the plate.',
     category: 'Pitcher and catcher',
     teaches: 'Pitcher gets deep enough behind home to turn a miss into just one base.',
+    roles: { P: 'Back up the plate and keep the overthrow in front of you.' },
     batterTo: FIRST,
     runners: [{ from: SECOND, to: HOME }],
     moves: { CF: SPOTS.centerDeep, P: SPOTS.deepHome, '1B': SPOTS.cut1BHome },
@@ -661,6 +678,7 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     situation: 'Base hit to centre with the batter trying to stretch it.',
     category: 'Pitcher and catcher',
     teaches: 'Pitcher follows the throw to second in case it gets away from the cutoff.',
+    roles: { P: 'Trail the throw to second and keep the ball from skipping away.' },
     batterTo: SECOND,
     moves: { CF: SPOTS.centerShallow, SS: SECOND, P: { at: [175, -2] } },
     ball: [HOME, { fielder: 'CF' }, SECOND],
@@ -674,6 +692,7 @@ const MORE_INFIELD_AND_RUNNER_PLAYS: readonly PlayDef[] = [
     situation: 'Corners charge on the bunt and the shortstop rotates to third.',
     category: 'Bunt defense',
     teaches: 'Rotation has to start before the bunt is even dead or the lead runner is safe.',
+    roles: { P: 'Cover the line behind the third baseman in case the bunt kicks away.' },
     batterTo: FIRST,
     runners: [
       { from: SECOND, to: THIRD },
@@ -688,6 +707,10 @@ const MORE_INFIELD_AND_RUNNER_PLAYS: readonly PlayDef[] = [
     situation: 'Runner on third. Infield crashes a bunt dropped in front of the plate.',
     category: 'Bunt defense',
     teaches: 'The whole point of the wheel is to get the lead runner before he scores.',
+    roles: {
+      '1B': 'Charge hard from the right side and be ready for anything the pitcher cannot reach.',
+      '3B': 'Crash from third and clear space for the pitcher to make the play.',
+    },
     batterTo: FIRST,
     runners: [{ from: THIRD, to: HOME }],
     moves: { P: SPOTS.buntFirst, C: HOME, '3B': SPOTS.buntThird, '1B': SPOTS.buntFirst },
@@ -738,6 +761,7 @@ const MORE_INFIELD_AND_RUNNER_PLAYS: readonly PlayDef[] = [
     situation: 'Runner on second creeps too far toward third before the pitch.',
     category: 'Runners moving',
     teaches: 'Sell the pitch, get the catcher out of his crouch, and fire straight through the bag.',
+    roles: { SS: 'Back up the throw to third.' },
     runners: [{ from: SECOND, to: THIRD }],
     moves: { '3B': THIRD, SS: SPOTS.cutSSLeft },
     ball: [MOUND, HOME, THIRD],
@@ -758,6 +782,7 @@ const MORE_INFIELD_AND_RUNNER_PLAYS: readonly PlayDef[] = [
     situation: 'Runner gets hung out trying for too much on a ground ball.',
     category: 'Runners moving',
     teaches: 'Run him back to the bag he left and keep a defender behind the throw.',
+    roles: { '2B': 'Trail the rundown so somebody is behind the tag.' },
     runners: [{ from: { at: [144, -24] }, to: SECOND }],
     moves: { SS: SECOND, '3B': THIRD, '2B': { at: [166, -2] } },
     ball: [THIRD, SECOND],

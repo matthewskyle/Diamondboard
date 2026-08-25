@@ -89,7 +89,13 @@ describe('compilePlay', () => {
       // A batted ball is one whose route starts at the plate. The exceptions
       // are balls the catcher already has, which never leave a bat.
       const startsAtThePlate = 'base' in play.ball[0] && play.ball[0].base === 'home';
-      const catcherHasIt = ['rundown-third-home', 'delayed-steal'].includes(play.id);
+      const catcherHasIt = [
+        'rundown-third-home',
+        'delayed-steal',
+        'delayed-double-steal',
+        '2-5-pick',
+        '2-4-backpick',
+      ].includes(play.id);
       if (!startsAtThePlate || catcherHasIt) continue;
       expect(play.batterTo, `${play.id} has nobody batting`).toBeDefined();
     }
