@@ -125,7 +125,7 @@ body {
 
 .tk-label {
   fill: var(--ink);
-  font-size: 24px;
+  font-size: 17px;
   font-weight: 700;
   font-family: inherit;
 }
