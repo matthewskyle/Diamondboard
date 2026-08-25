@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { compilePlay, PLAYS } from '../plays';
-import { assignDefense, AT_BASE_FT, isOutfield, throwTargets } from '../defense';
+import { assignDefense, AT_BASE_FT, caughtInTheAir, isOutfield, throwTargets } from '../defense';
 import { BASE_FEET, feetAt, feetBetween, feetOf, type Feet } from '../spots';
 import { BASES, FIELDER_SPOTS, TOKEN_RADIUS } from '../fieldGeometry';
 import type { BaseName, PlayDef, Spot } from '../playTypes';
@@ -142,10 +142,11 @@ describe('nobody stands anywhere silly', () => {
 });
 
 describe('the doctrine is the same on every play', () => {
-  it('cuts throws home with the corner nearest the ball', () => {
-    // The third baseman on a ball the left fielder handles, the first baseman on
-    // anything to centre or right — and the first baseman on a double cut from
-    // anywhere, because a third baseman is never the front half of one.
+  it('cuts throws home with the first baseman, bar the one case that is not him', () => {
+    // The third baseman takes it on a ball on the ground through left field, and
+    // nowhere else: not on a ball to centre or right, not on anything an
+    // outfielder caught — a runner is tagging up and third base is live — and
+    // not behind a relay man, because he is never the front half of a double cut.
     const wrong: string[] = [];
     for (const play of PLAYS) {
       const { jobs } = assignDefense(play);
@@ -154,8 +155,24 @@ describe('the doctrine is the same on every play', () => {
       const cut = POSITIONS.find((l) => jobs[l].kind === 'cut' && jobs[l].base === 'home');
       if (!cut) continue;
       const relayed = POSITIONS.some((l) => jobs[l].kind === 'relay');
-      const expected = fielder === 'LF' && !relayed ? '3B' : '1B';
+      const thirdsBall = fielder === 'LF' && !relayed && !caughtInTheAir(play);
+      const expected = thirdsBall ? '3B' : '1B';
       if (cut !== expected) wrong.push(`${play.id}: ${cut} cutting a throw home from ${fielder}`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('leaves third base covered on every ball an outfielder catches', () => {
+    // A caught ball means a runner tagging up, and a runner tagging up means a
+    // throw behind him. The third baseman does not leave for a cut on those.
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      if (!caughtInTheAir(play)) continue;
+      const fielder = firstFielder(play);
+      if (!fielder || !isOutfield(fielder)) continue;
+      const ends = fielderFeet(play);
+      const on = POSITIONS.filter((l) => feetBetween(ends[l], BASE_FEET.third) <= AT_BASE_FT);
+      if (on.length === 0) wrong.push(`${play.id}: nobody on third`);
     }
     expect(wrong).toEqual([]);
   });

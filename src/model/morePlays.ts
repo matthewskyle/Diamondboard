@@ -117,7 +117,9 @@ function outfieldPlay(config: {
 
   if (config.through === 'relay' || double) chain.push({ fielder: relayManFor(config.at) });
   if (config.through === 'cut' || double) {
-    chain.push({ fielder: cutManFor(target, config.of.label, feetOf(config.at)!, double)[0] });
+    chain.push({
+      fielder: cutManFor(target, config.of.label, feetOf(config.at)!, { relayed: double })[0],
+    });
   }
 
   return {
@@ -393,7 +395,11 @@ function outfieldSeries(of: Outfield): PlayDef[] {
       moves: { [of.label]: of.shallow },
       // The throw never gets past the cut man, which is the point of it.
       aim: 'home',
-      ball: [HOME, { fielder: of.label }, { fielder: cutManFor('home', of.label, feetOf(of.shallow)!)[0] }],
+      ball: [
+        HOME,
+        { fielder: of.label },
+        { fielder: cutManFor('home', of.label, feetOf(of.shallow)!, { caught: true })[0] },
+      ],
       roles: {
         [of.label]: 'Catch it coming in and throw to the cut man so the runner stays put.',
       },
@@ -665,8 +671,11 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
     situation: 'Second baseman ranges far to his glove side for a ground ball.',
     category: 'Routine outs',
     teaches: 'Any ball to the right side and the pitcher is already running to the bag.',
+    roles: {
+      '1B': 'Break for the ball — that is the whole reason the pitcher has the bag.',
+    },
     batterTo: FIRST,
-    moves: { '2B': SPOTS.secondRight, P: FIRST },
+    moves: { '1B': SPOTS.firstHot, '2B': SPOTS.secondRight, P: FIRST },
     ball: [HOME, { fielder: '2B' }, { fielder: 'P' }],
   },
   {
@@ -919,8 +928,11 @@ const MORE_INFIELD_AND_RUNNER_PLAYS: readonly PlayDef[] = [
     situation: 'Second baseman ranges deep into short right field.',
     category: 'Routine outs',
     teaches: 'Show the pitcher a target and throw it soft enough to catch on the run.',
+    roles: {
+      '1B': 'You went after it too. Clear the bag and let the pitcher have it.',
+    },
     batterTo: FIRST,
-    moves: { '2B': { at: [176, 30] }, P: FIRST },
+    moves: { '1B': { at: [128, 34] }, '2B': { at: [176, 30] }, P: FIRST },
     ball: [HOME, { fielder: '2B' }, { fielder: 'P' }],
   },
   {

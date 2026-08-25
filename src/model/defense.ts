@@ -31,9 +31,11 @@ import {
  *    first baseman has the cut and the third baseman stays at third.
  *  - Pro Baseball Insider, *Third base positioning for relays*: "The only time
  *    you will need to be a cut off man is when there is a play at home plate and
- *    a ball is hit to the left fielder", and — the rule that decides a double
- *    cut — "The 3rd baseman is the lead cut-off man of a double cut: never. You
- *    are covering third base."
+ *    a ball is hit to the left fielder"; the rule that decides a double cut —
+ *    "The 3rd baseman is the lead cut-off man of a double cut: never. You are
+ *    covering third base."; and the one that decides a fly ball — "Fly ball to
+ *    an outfielder, you will stay at third base and be ready to receive a throw
+ *    if a runner tags up."
  *  - CoachUp, *Hitting the cutoff man*: the shortstop lines up throws from left
  *    to second and third and from centre to third; the second baseman lines up
  *    throws from right to second and third.
@@ -63,6 +65,12 @@ export const RELAY_NOT_CUT_FT = 80;
 /** Backing something up means getting behind it, in line with the throw. */
 export const BACKUP_BEHIND_FT = 30;
 export const BACKUP_BEHIND_FIELDER_FT = 34;
+/**
+ * How much further back the second man behind a bag sets up. Two men at the
+ * same depth are one man: they layer, so a ball through the first is still in
+ * front of somebody.
+ */
+export const BACKUP_LAYER_FT = 16;
 /** How far a fielder can actually run while the play happens. */
 export const OUTFIELD_RUN_FT = 95;
 export const CATCHER_RUN_FT = 55;
@@ -101,6 +109,8 @@ export type JobKind =
   | 'backup'
   /** Comes in on the plate for a ball nobody has time to wait on. */
   | 'charge'
+  /** Gets out of the way of a throw he is standing in front of. */
+  | 'clear'
   /** Shades off his normal spot because this play wants him somewhere else. */
   | 'shift'
   | 'idle';
@@ -143,13 +153,28 @@ export function sideOf(feet: Feet): 'left' | 'centre' | 'right' {
 }
 
 /**
+ * What kind of throw home this is, for the one rule that turns on it: whether
+ * the third baseman can afford to leave third base.
+ */
+export interface ThrowKind {
+  /** There is a relay man in front of the cut man. */
+  relayed?: boolean;
+  /** An outfielder caught it in the air. */
+  caught?: boolean;
+}
+
+/**
  * The cut man on a throw from the outfield to a base, in preference order.
  *
- * To the plate it is the corner nearest the ball: the third baseman on a ball
- * the left fielder handles, the first baseman on anything to centre or right.
- * Behind a relay man it is always the first baseman — a third baseman is never
- * the front half of a double cut, because on a ball that deep he is standing on
- * third waiting for the runner behind the one that is scoring.
+ * To the plate it is normally the first baseman. The third baseman takes it in
+ * exactly one case — a ball on the ground through left field — and that case is
+ * narrow for a reason: he is the nearest corner to the ball, so he is the man
+ * who can be lined up in time, and a single to left with the run coming is a
+ * play where nobody is going to third anyway. Anything else and he stays on the
+ * bag. On a ball he watched an outfielder catch there is a runner tagging up and
+ * third base is live, and behind a relay man he is never the front half of a
+ * double cut, because on a ball that deep he is waiting on the runner behind
+ * the one that is scoring.
  *
  * To second or third it is the middle infielder on the ball's side, who is
  * already moving that way and can keep the runner in front of him. That leaves
@@ -161,11 +186,11 @@ export function cutManFor(
   base: BaseName,
   fielder: string,
   feet: Feet,
-  behindRelay = false,
+  throwKind: ThrowKind = {},
 ): string[] {
   if (base === 'first' || base === 'mound') return [];
   if (base === 'home') {
-    if (behindRelay) return ['1B'];
+    if (throwKind.relayed || throwKind.caught) return ['1B'];
     return fielder === 'LF' ? ['3B', '1B'] : ['1B', '3B'];
   }
   return sideOf(feet) === 'right' ? ['2B', 'SS'] : ['SS', '2B'];
@@ -228,24 +253,57 @@ const RELIEF_FOR: Record<string, string[]> = {
 };
 
 /**
- * Who else gets behind a bag a throw is going to, after the pitcher — the
- * outfielder in front of it. The right fielder trails every throw to first,
- * the centre fielder every throw to second, the left fielder every throw to
- * third. With nobody else on, the catcher trails the batter up the line.
+ * Who else gets behind a bag a throw is going to, after the pitcher. The
+ * outfielder in front of it first: the right fielder trails every throw to
+ * first, the centre fielder every throw to second, the left fielder every throw
+ * to third. Then, at second and third, the infielder who owns the bag and is
+ * not the one standing on it — the pair of middle infielders work every throw to
+ * second between them, one on the bag and one behind it, and the same is true of
+ * the shortstop and third baseman at third.
  */
-function backupFor(base: BaseName, runnersOn: boolean): string[] {
+function backupFor(base: BaseName): string[] {
   switch (base) {
     case 'home':
       return [];
     case 'third':
-      return ['LF'];
+      return ['LF', 'SS', '3B'];
     case 'second':
-      return ['CF'];
+      return ['CF', '2B', 'SS'];
     case 'first':
-      return runnersOn ? ['RF'] : ['RF', 'C'];
+      return ['RF'];
     case 'mound':
       return [];
   }
+}
+
+/** How many men get behind one bag. The man in front of it, and one infielder. */
+const BACKUPS_PER_BASE = 2;
+
+/**
+ * Is the pitcher standing in this throw rather than able to get behind it?
+ *
+ * A throw to second base from the plate goes straight over the mound. He cannot
+ * beat it to the far side of the bag — it is ninety feet away and the ball is
+ * faster than he is — and the attempt puts him in the one place on the field
+ * where he can turn an out into a run. His job is the other one: get off the
+ * line so the catcher has a lane.
+ */
+function inTheThrowingLane(target: BaseName, from: Feet): boolean {
+  return target === 'second' && distanceFromHome(from) < 45;
+}
+
+/** Off the mound to the arm side, clear of the line from the plate to second. */
+const CLEAR_OF_THE_LANE: Feet = feetAt(62, 17);
+
+/**
+ * How far behind a bag a man sets up to back a throw up. Three layers, fixed by
+ * who he is rather than by who got there first: the outfielder deepest, because
+ * he is running in from behind anyway; the pitcher nearest, because he is the
+ * one who has furthest to come; the spare infielder between them.
+ */
+function backupDepthFor(label: string): number {
+  if (isOutfield(label)) return BACKUP_BEHIND_FT * 2;
+  return label === 'P' ? BACKUP_BEHIND_FT : BACKUP_BEHIND_FT + BACKUP_LAYER_FT;
 }
 
 /**
@@ -260,8 +318,13 @@ function backupFor(base: BaseName, runnersOn: boolean): string[] {
  */
 function isRelayBall(play: PlayDef, ball: Feet, target: BaseName): boolean {
   if (target === 'home') return false;
-  if (play.category === 'Fly balls') return false;
+  if (caughtInTheAir(play)) return false;
   return distanceFromHome(ball) > RELAY_DEPTH_FT;
+}
+
+/** Did an outfielder catch this one, rather than run it down? */
+export function caughtInTheAir(play: PlayDef): boolean {
+  return play.category === 'Fly balls';
 }
 
 /** Which outfielder covers the ground a batted ball landed on. */
@@ -417,6 +480,13 @@ function assign(play: PlayDef): Defense {
   const route = play.ball;
   const runners = play.runners ?? [];
   const runnersOn = runners.length > 0;
+  // Every bag somebody is running at, the batter included.
+  const headedFor = new Set<BaseName>(
+    [play.batterTo, ...runners.map((runner) => runner.to)].flatMap((to) => {
+      const base = baseOf(to);
+      return base ? [base] : [];
+    }),
+  );
   const batted = 'base' in route[0] && route[0].base === 'home' && play.batterTo !== undefined;
   const touches = route.flatMap((stop, i) => ('fielder' in stop ? [i] : []));
   const fielderOfBall = touches.length > 0 ? labelOf(route[touches[0]]) : null;
@@ -512,10 +582,24 @@ function assign(play: PlayDef): Defense {
   for (const { base, thrower } of throws) {
     if (!thrower || !isOutfield(thrower)) continue;
     if (Object.values(jobs).some((job) => job.kind === 'cut' && job.base === base)) continue;
-    const behindRelay = Object.values(jobs).some((job) => job.kind === 'relay');
-    const label = claim(cutManFor(base, thrower, ballFeet, behindRelay));
+    const relayed = Object.values(jobs).some((job) => job.kind === 'relay');
+    const label = claim(cutManFor(base, thrower, ballFeet, { relayed, caught: caughtInTheAir(play) }));
     if (!label) continue;
     take(label, cutSpot(ballFeet, base), { kind: 'cut', base });
+  }
+
+  // 3b. The bag the cut man left, before anything else gets handed out. Which
+  //     man covers which bag on a throw home is one decision, not four: the cut
+  //     man's partner takes his bag, and the rest of the infield fills in around
+  //     that. Settle it the other way round and the first baseman goes out to
+  //     cut a throw home while the second baseman is already standing on second,
+  //     leaving first base empty with a runner on it.
+  for (const [label, job] of Object.entries(jobs)) {
+    if (job.kind !== 'cut' && job.kind !== 'relay') continue;
+    const vacated = HOME_BASE_OF[label];
+    if (!vacated || vacated === job.base || covered(vacated)) continue;
+    const relief = claimFree(RELIEF_FOR[label] ?? []);
+    if (relief) take(relief, { base: vacated }, { kind: 'cover', base: vacated });
   }
 
   // 4. Bags the ball is actually thrown to. Somebody has to be standing on them.
@@ -552,13 +636,13 @@ function assign(play: PlayDef): Defense {
     if (label) take(label, { base: 'first' }, { kind: 'cover', base: 'first' });
   }
 
-  // 6. Bags left empty by the men who went out to cut or relay.
-  for (const [label, job] of Object.entries(jobs)) {
-    if (job.kind !== 'cut' && job.kind !== 'relay') continue;
-    const vacated = HOME_BASE_OF[label];
-    if (!vacated || vacated === job.base || covered(vacated)) continue;
-    const relief = claimFree(RELIEF_FOR[label] ?? []);
-    if (relief) take(relief, { base: vacated }, { kind: 'cover', base: vacated });
+  // 6. Any bag a runner is running at, throw or no throw. A force at third
+  //     with nobody standing on third is not a force, and the ball only has to
+  //     be knocked down once for the bag to matter.
+  for (const base of ['home', 'third', 'second', 'first'] as const) {
+    if (!headedFor.has(base) || covered(base)) continue;
+    const label = claimFree(coverFor(base, ballFeet, fielderOfBall, fromOutfield));
+    if (label) take(label, { base }, { kind: 'cover', base });
   }
 
   // 7. The pitcher. He is behind whichever bag the throw is going to — the last
@@ -569,14 +653,16 @@ function assign(play: PlayDef): Defense {
     const last = throws[throws.length - 1];
     const target =
       play.aim ?? (last && last.base !== 'mound' ? last.base : fromOutfield ? 'home' : null);
-    if (target) {
-      const from = throwOriginFor(target);
+    const from = target ? throwOriginFor(target) : null;
+    if (target && from && inTheThrowingLane(target, from)) {
+      take('P', spotOfFeet(CLEAR_OF_THE_LANE), { kind: 'clear', base: target });
+    } else if (target && from) {
       take(
         'P',
         spotOfFeet(
           towardCapped(
             DEFAULT_FEET['P'],
-            beyond(from, BASE_FEET[target], BACKUP_BEHIND_FT),
+            beyond(from, BASE_FEET[target], backupDepthFor('P')),
             PITCHER_RUN_FT,
           ),
         ),
@@ -585,42 +671,55 @@ function assign(play: PlayDef): Defense {
     }
   }
 
-  // 8. The catcher. The plate is his on anything that could bring a runner to
-  //    it, and it is his voice that decides whether a throw gets cut. With
-  //    nobody on he has no plate to guard, so he trails the batter up the line.
-  if (!busy.has('C') && !spots['C'] && touches.length > 0) {
-    const calling = Object.values(jobs).some((job) => job.kind === 'cut' || job.kind === 'relay');
-    if (!runnersOn && play.batterTo) {
-      take(
-        'C',
-        spotOfFeet(towardCapped(DEFAULT_FEET['C'], BASE_FEET.first, CATCHER_RUN_FT)),
-        { kind: 'backup', base: 'first' },
-      );
-    } else if (runnersOn) {
+  // 8. The catcher. The plate is his. He gives it up for one thing only: an
+  //    infield ground ball with nobody on, where there is no run to defend and
+  //    the throw to first is the whole play, so he trails the batter up the line
+  //    in case it gets away. Anything hit to the outfield, or any runner on
+  //    base, and he is standing on the plate — that is where a play could
+  //    happen, and it is his voice that decides whether a throw gets cut.
+  if (!busy.has('C') && !spots['C']) {
+    // He only has a call to make when the throw is coming to him: it is his
+    // plate, so it is his decision whether the cut man takes it. A relay to
+    // third is the third baseman's to line up, not his.
+    const calling = Object.values(jobs).some(
+      (job) => (job.kind === 'cut' || job.kind === 'relay') && job.base === 'home',
+    );
+    const trailing =
+      !runnersOn && !fromOutfield && baseOf(play.batterTo) === 'first' && touches.length > 0;
+    if (trailing) {
+      take('C', spotOfFeet(towardCapped(DEFAULT_FEET['C'], BASE_FEET.first, CATCHER_RUN_FT)), {
+        kind: 'backup',
+        base: 'first',
+      });
+    } else {
       take('C', { base: 'home' }, { kind: calling ? 'call' : 'cover', base: 'home' });
     }
   }
 
-  // 9. Backing up the throws, outfielder by outfielder.
+  // 9. Backing up the throws: the man in front of the bag, and the infielder
+  //    who owns it and is not on it.
   for (const { base } of throws) {
-    const label = claimFree(backupFor(base, runnersOn));
-    if (!label) continue;
-    const behind = isOutfield(label) ? BACKUP_BEHIND_FT * 2 : BACKUP_BEHIND_FT;
-    take(
-      label,
-      spotOfFeet(
-        towardCapped(
-          DEFAULT_FEET[label],
-          beyond(throwOriginFor(base), BASE_FEET[base], behind),
-          runLimitFor(label),
+    for (let taken = 0; taken < BACKUPS_PER_BASE; taken++) {
+      const label = claimFree(backupFor(base));
+      if (!label) break;
+      take(
+        label,
+        spotOfFeet(
+          towardCapped(
+            DEFAULT_FEET[label],
+            beyond(throwOriginFor(base), BASE_FEET[base], backupDepthFor(label)),
+            runLimitFor(label),
+          ),
         ),
-      ),
-      { kind: 'backup', base },
-    );
+        { kind: 'backup', base },
+      );
+    }
   }
 
   // 10. And behind the man going to the ball, because the ball gets through.
-  if (fielderOfBall) {
+  //     Only a ball in play: nobody runs in from the outfield to stand behind a
+  //     bunt dying at the plate or a foul pop at the backstop.
+  if (fielderOfBall && inFairGround(ballFeet)) {
     const order = fromOutfield
       ? outfieldSupport(fielderOfBall, ballFeet)
       : [outfieldZone(ballFeet)];
@@ -633,6 +732,16 @@ function assign(play: PlayDef): Defense {
         { kind: 'backup', behind: fielderOfBall },
       );
     }
+  }
+
+  // 10b. An infielder with nothing else to do is on his own bag. That is the
+  //      job the position is named after, and on a ball in play he goes there
+  //      rather than watching from where he happened to be standing.
+  for (const label of ['1B', '2B', 'SS', '3B'] as const) {
+    if (busy.has(label) || spots[label]) continue;
+    const own = HOME_BASE_OF[label];
+    if (covered(own)) continue;
+    take(label, { base: own }, { kind: 'cover', base: own });
   }
 
   // 11. Anyone the play moved without saying why. A bag is coverage; a spot in
@@ -672,6 +781,11 @@ function assign(play: PlayDef): Defense {
 
 function distanceFromHome(f: Feet): number {
   return Math.hypot(f.x, f.y);
+}
+
+/** Inside the foul lines and out in front of the plate: a ball somebody chases. */
+function inFairGround(f: Feet): boolean {
+  return f.y > 0 && Math.abs(f.x) <= f.y;
 }
 
 function runLimitFor(label: string): number {

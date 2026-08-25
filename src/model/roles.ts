@@ -122,6 +122,8 @@ function textFor(play: PlayDef, job: Job): string {
         : `Get behind ${bag(job.base)} in case the throw gets by.`;
     case 'charge':
       return 'Charge the ball and take anything you can get to.';
+    case 'clear':
+      return 'Get off the throwing line. The worst thing you can do here is touch it.';
     case 'shift':
       return 'Shade over to the spot this play needs and cover your ground.';
     default:
