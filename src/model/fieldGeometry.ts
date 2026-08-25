@@ -206,13 +206,15 @@ export function defaultFielderPosition(spot: FielderSpot): Point {
 
 // --- Tokens ---------------------------------------------------------------
 
-export const TOKEN_RADIUS = 30;
+export const TOKEN_RADIUS = 21;
 export const RUNNER_RADIUS = 12;
 export const BALL_RADIUS = 12;
 
 /**
- * Invisible hit area, in viewBox units. At iPad-portrait scale one unit is
- * roughly 0.8 CSS px, so 38 units clears the 44 px minimum touch target.
+ * Invisible hit area, in viewBox units, and deliberately larger than the token
+ * it belongs to: how big a token looks is a design choice, how big it is to a
+ * fingertip is not. At iPad-portrait scale one unit is roughly 0.8 CSS px, so
+ * 38 units clears the 44 px minimum touch target.
  */
 export const TOKEN_HIT_RADIUS = 38;
 
