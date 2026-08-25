@@ -18,6 +18,22 @@ npm run build    # production build into dist/
 No backend, no accounts, nothing saved: the app is entirely client-side and a
 refresh returns the board to its default arrangement.
 
+## Installing it on an iPad
+
+Diamondboard is a progressive web app, so it installs from the browser with no
+App Store involved:
+
+1. Open the deployed URL in Safari.
+2. Share → **Add to Home Screen**.
+
+It then launches full screen with no browser chrome, and **runs entirely
+offline** — every asset is precached on first visit, so it works on a field with
+no signal. Updates install themselves the next time it is opened online.
+
+Hosting needs to be HTTPS (service workers require it; `localhost` is exempt).
+`.github/workflows/deploy.yml` publishes `dist/` to GitHub Pages on every push
+to `main` — enable it once under Settings → Pages → Source: GitHub Actions.
+
 ## Using it
 
 | Tool | What it does |

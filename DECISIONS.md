@@ -88,6 +88,30 @@ the hit radius is computed from the SVG's current transform, so it grows on a
 phone where a unit is ~0.39 px. Because generous radii overlap, the **nearest**
 token wins a tap, with exact ties going to the one drawn on top.
 
+## Shipping as an app
+
+Phase 1 ships as an installable PWA rather than a native build: nothing in the
+app needs a native API, and this route costs no developer account, no review,
+and no Mac.
+
+- **`display: standalone`** — launches full screen, no browser chrome.
+- **Precache everything** (`vite-plugin-pwa`, `generateSW`). The whole app is
+  ~257 KB of static assets with no backend, so it can be cached in full and run
+  with no network at all. Verified by loading it, cutting the network, reloading
+  from the service worker, and dragging a fielder.
+- **`autoUpdate`** — a new version installs on the next online launch. There is
+  no unsaved work to interrupt, so a prompt would be noise.
+- **`black-translucent` status bar**, with `.app` padding for
+  `env(safe-area-inset-top)` — the field runs edge to edge under the clock.
+- **Icons are rendered from one SVG** at build time, each variant with the safe
+  zone its mask wants: maskable icons keep the art inside the middle 80% for the
+  circular crop, iOS gets a little margin for its rounded-rect mask.
+
+One consequence worth knowing: installing raises the expectation that work
+persists, and nothing does yet. An installed board still opens on the default
+arrangement every time. That makes Phase 2 persistence the next thing worth
+building, and it is also what a native App Store build would need first.
+
 ## Deliberately absent
 
 No save/load, no play library, no accounts, no templates, no multi-keyframe

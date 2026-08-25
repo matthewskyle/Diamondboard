@@ -38,6 +38,8 @@ body {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+  /* Installed on a home screen the status bar overlays the page. */
+  padding-top: env(safe-area-inset-top);
 }
 
 .stage {
