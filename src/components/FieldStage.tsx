@@ -1,5 +1,12 @@
-import { useCallback, useRef, useState } from 'react';
-import { clampToField, hitRadiusForScale, VIEW_BOX_ATTR } from '../model/fieldGeometry';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  clampToField,
+  hitRadiusForScale,
+  TOKEN_RADIUS,
+  VIEW_BOX,
+  viewBoxAttr,
+  viewHeightFor,
+} from '../model/fieldGeometry';
 import { tokenAt, strokeAt } from '../model/hitTest';
 import type { Point } from '../model/path';
 import type { DiagramAction } from '../model/diagramState';
@@ -32,6 +39,37 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [draft, setDraft] = useState<{ pointerId: number; points: Point[] } | null>(null);
+  const [viewHeight, setViewHeight] = useState<number>(VIEW_BOX.height);
+
+  // Track the container's shape so a rotation crops the board rather than
+  // shrinking the field. Changing the viewBox doesn't resize the element, so
+  // this can't feed back on itself.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setViewHeight(viewHeightFor(width / height));
+    });
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
+  const latestTokens = useRef(state.tokens);
+  useLayoutEffect(() => {
+    latestTokens.current = state.tokens;
+  });
+
+  // A crop can strand tokens below the new bottom edge — lift them back into
+  // view rather than let them vanish on rotation.
+  useEffect(() => {
+    const bottom = viewHeight - TOKEN_RADIUS;
+    const stranded = latestTokens.current.filter((t) => t.y > bottom);
+    if (stranded.length === 0) return;
+    const positions: PositionMap = {};
+    for (const token of stranded) positions[token.id] = { x: token.x, y: bottom };
+    dispatch({ type: 'setPositions', positions });
+  }, [viewHeight, dispatch]);
 
   const toFieldPoint = useCallback((event: React.PointerEvent): Point => {
     const svg = svgRef.current;
@@ -68,10 +106,10 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
         return;
       }
       case 'addRunner':
-        dispatch({ type: 'addRunner', at: clampToField(p) });
+        dispatch({ type: 'addRunner', at: clampToField(p, viewHeight) });
         return;
       case 'addBall':
-        dispatch({ type: 'addBall', at: clampToField(p) });
+        dispatch({ type: 'addBall', at: clampToField(p, viewHeight) });
         return;
       case 'erase': {
         const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
@@ -93,7 +131,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     if (drag?.pointerId === event.pointerId) {
       const p = toFieldPoint(event);
-      setDrag({ ...drag, at: clampToField({ x: p.x + drag.dx, y: p.y + drag.dy }) });
+      setDrag({ ...drag, at: clampToField({ x: p.x + drag.dx, y: p.y + drag.dy }, viewHeight) });
       return;
     }
     if (draft?.pointerId === event.pointerId) {
@@ -131,7 +169,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     <svg
       ref={svgRef}
       className="field-svg"
-      viewBox={VIEW_BOX_ATTR}
+      viewBox={viewBoxAttr(viewHeight)}
       preserveAspectRatio="xMidYMid meet"
       role="application"
       aria-label="Baseball field diagram"

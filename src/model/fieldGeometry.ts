@@ -25,7 +25,30 @@ import type { Point } from './path';
  */
 
 export const VIEW_BOX = { width: 1000, height: 1130 } as const;
-export const VIEW_BOX_ATTR = `0 0 ${VIEW_BOX.width} ${VIEW_BOX.height}`;
+
+/**
+ * The shortest board worth drawing: everything the field renders, including the
+ * catcher's token, sits above this. Cropping to it trades the open green below
+ * home plate — which is the portrait look — for a bigger field.
+ */
+export const MIN_VIEW_HEIGHT = 780;
+
+/**
+ * How tall the board should be for a container of the given aspect (width over
+ * height). Portrait keeps the full height; as the container widens, the empty
+ * green below home is cropped away rather than being allowed to squeeze the
+ * field, down to the floor above. No breakpoints — it tracks the container.
+ */
+export function viewHeightFor(aspect: number): number {
+  if (!Number.isFinite(aspect) || aspect <= 0) return VIEW_BOX.height;
+  // Below this height the render is width-limited, which is what fills the frame.
+  const widthLimited = VIEW_BOX.width / aspect;
+  return Math.min(Math.max(widthLimited, MIN_VIEW_HEIGHT), VIEW_BOX.height);
+}
+
+export function viewBoxAttr(height: number = VIEW_BOX.height): string {
+  return `0 0 ${VIEW_BOX.width} ${r(height)}`;
+}
 
 /** Home plate, in viewBox units. Everything else is measured from here. */
 export const HOME: Point = { x: 500, y: 643 };
@@ -206,12 +229,12 @@ export function hitRadiusForScale(pxPerUnit: number): number {
   return Math.max(TOKEN_HIT_RADIUS, MIN_TOUCH_TARGET_PX / 2 / pxPerUnit);
 }
 
-/** Keep dragged tokens on the board. */
-export function clampToField(p: Point): Point {
+/** Keep dragged tokens on the board, whatever height it is currently drawn at. */
+export function clampToField(p: Point, viewHeight: number = VIEW_BOX.height): Point {
   const m = TOKEN_RADIUS;
   return {
     x: Math.min(Math.max(p.x, m), VIEW_BOX.width - m),
-    y: Math.min(Math.max(p.y, m), VIEW_BOX.height - m),
+    y: Math.min(Math.max(p.y, m), viewHeight - m),
   };
 }
 
@@ -230,3 +253,4 @@ function arcTo(to: Point, radius: number, sweep: 0 | 1 = 1): string {
 function r(n: number): number {
   return Math.round(n * 100) / 100;
 }
+

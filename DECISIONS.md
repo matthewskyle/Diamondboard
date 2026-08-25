@@ -81,6 +81,26 @@ the white lines do all the shape work — plus the near-black button fill
 - **New play** (the spec's Reset) restores the nine default fielders and clears
   runners, the ball, strokes, both captures, and the undo stack.
 
+## Rotation
+
+The board's height follows the container's shape instead of being fixed. In
+portrait it keeps its full 1130 units, including the open green below home plate
+that gives the reference its look. As the container widens, that green — which
+is empty, and in landscape would otherwise squeeze the field itself — is cropped
+away, down to a floor of 780 units that always clears the catcher's token. No
+breakpoints: the height tracks the aspect continuously, so split view and Stage
+Manager get the same treatment as a rotation.
+
+On an iPad Air in landscape that takes the field from 57% of the width to 83%,
+about 45% larger. Landscape is not a bespoke layout and doesn't fill the screen
+— the field's natural shape leaves margins at the sides — but it is usable at a
+glance rather than a shrunken portrait board.
+
+Cropping can strand a token that was parked in the open green, so on a crop
+anything below the new bottom edge is lifted back into view. It moves through
+the same non-undoable bulk write the animation uses: rotating the iPad is not an
+edit, and shouldn't cost an undo step.
+
 ## Touch targets
 
 The spec's 44 CSS px minimum is enforced at whatever scale the field is drawn:

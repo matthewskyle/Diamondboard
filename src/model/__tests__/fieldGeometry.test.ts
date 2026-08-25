@@ -14,6 +14,8 @@ import {
   FOUL_ANGLE,
   defaultFielderPosition,
   TOKEN_RADIUS,
+  viewHeightFor,
+  MIN_VIEW_HEIGHT,
 } from '../fieldGeometry';
 
 /** How far up the field a point sits, undoing the squash: real radial units. */
@@ -147,5 +149,54 @@ describe('clampToField', () => {
       y: VIEW_BOX.height - TOKEN_RADIUS,
     });
     expect(clampToField(pointAt(90, 45))).toEqual(BASES.first);
+  });
+});
+
+describe('viewHeightFor', () => {
+  it('keeps the full board in portrait', () => {
+    expect(viewHeightFor(820 / 1000)).toBe(VIEW_BOX.height); // iPad portrait
+    expect(viewHeightFor(390 / 760)).toBe(VIEW_BOX.height); // phone portrait
+  });
+
+  it('crops the empty green below home once the container goes wide', () => {
+    const landscape = viewHeightFor(1180 / 764); // iPad Air landscape
+    expect(landscape).toBeLessThan(VIEW_BOX.height);
+    expect(landscape).toBe(MIN_VIEW_HEIGHT);
+  });
+
+  it('never crops into the field itself', () => {
+    // The catcher is the lowest thing drawn; no crop may cut into any token.
+    for (const aspect of [0.4, 0.8, 1, 1.5, 2.5, 10]) {
+      const h = viewHeightFor(aspect);
+      expect(h).toBeGreaterThanOrEqual(MIN_VIEW_HEIGHT);
+      for (const spot of FIELDER_SPOTS) {
+        expect(defaultFielderPosition(spot).y + TOKEN_RADIUS).toBeLessThanOrEqual(h);
+      }
+    }
+  });
+
+  it('shrinks monotonically as the container widens, then holds at the floor', () => {
+    let previous = Infinity;
+    for (let aspect = 0.4; aspect <= 3; aspect += 0.2) {
+      const h = viewHeightFor(aspect);
+      expect(h).toBeLessThanOrEqual(previous);
+      previous = h;
+    }
+  });
+
+  it('falls back to the full board for a degenerate container', () => {
+    expect(viewHeightFor(0)).toBe(VIEW_BOX.height);
+    expect(viewHeightFor(Number.NaN)).toBe(VIEW_BOX.height);
+  });
+});
+
+describe('clampToField with a cropped board', () => {
+  it('keeps tokens above the current bottom edge', () => {
+    expect(clampToField({ x: 500, y: 5000 }, MIN_VIEW_HEIGHT)).toEqual({
+      x: 500,
+      y: MIN_VIEW_HEIGHT - TOKEN_RADIUS,
+    });
+    // The full board still allows the open area below home plate.
+    expect(clampToField({ x: 500, y: 900 }).y).toBe(900);
   });
 });
