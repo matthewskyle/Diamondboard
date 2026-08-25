@@ -22,6 +22,50 @@ describe('the play library', () => {
       expect(play.ball.length, play.id).toBeGreaterThanOrEqual(2);
     }
   });
+
+  it('never ends a batted ball on a bare catch with no throw', () => {
+    // "Make the catch — that is the play" is not a teaching play. Every caught
+    // ball still has a look-in, a tag throw, or a double-off throw.
+    for (const play of PLAYS) {
+      const [first, second] = play.ball;
+      const batted =
+        'base' in first && first.base === 'home' && 'fielder' in second;
+      if (!batted) continue;
+      expect(play.ball.length, `${play.id} ends on a bare catch`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('does not advance a runner two bases on a caught fly', () => {
+    for (const play of PLAYS) {
+      if (play.category !== 'Fly balls') continue;
+      for (const runner of play.runners ?? []) {
+        if (!('base' in runner.from) || !runner.to || !('base' in runner.to)) continue;
+        const from = runner.from.base;
+        const to = runner.to.base;
+        const illegal =
+          (from === 'first' && (to === 'third' || to === 'home')) ||
+          (from === 'second' && to === 'home');
+        expect(illegal, `${play.id}: ${from} → ${to} on a catch`).toBe(false);
+      }
+    }
+  });
+
+  it('does not gift first-to-third on a routine single', () => {
+    // On a single, the defense's job is to keep the lead runner at second. Gap
+    // and wall balls are the exception — those can legitimately make third.
+    for (const play of PLAYS) {
+      const isGapOrWall = /gap|wall|corner|off the wall|carom/i.test(
+        `${play.id} ${play.name} ${play.situation}`,
+      );
+      if (isGapOrWall) continue;
+      for (const runner of play.runners ?? []) {
+        if (!('base' in runner.from) || !runner.to || !('base' in runner.to)) continue;
+        if (runner.from.base === 'first' && runner.to.base === 'third') {
+          expect.fail(`${play.id}: first → third on a non-gap single`);
+        }
+      }
+    }
+  });
 });
 
 describe('compilePlay', () => {

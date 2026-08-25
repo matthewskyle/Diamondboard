@@ -27,8 +27,19 @@ describe('roleFor', () => {
     expect(roleFor(play('steal-second'), 'SS').text).toBe('Cover second base.');
   });
 
-  it('treats a catch that ends the play as the play', () => {
-    expect(roleFor(play('pop-up-catcher'), 'C').text).toContain('Make the catch');
+  it('treats a catch that ends with a throw as the whole play', () => {
+    expect(roleFor(play('pop-up-catcher'), 'C').text).toContain('Catch it');
+    expect(roleFor(play('pop-up-catcher'), 'C').text).toContain('first');
+  });
+
+  it('never leaves a fielder with only "make the catch" as the job', () => {
+    for (const play of PLAYS) {
+      for (const label of POSITIONS) {
+        const { text } = roleFor(play, label);
+        expect(text, `${play.id} / ${label}`).not.toMatch(/Make the catch\. That is the play/i);
+        expect(text, `${play.id} / ${label}`).not.toMatch(/That is the play/i);
+      }
+    }
   });
 
   it('uses the play own words where the job cannot be read off it', () => {
