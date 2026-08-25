@@ -70,13 +70,14 @@ the white lines do all the shape work — plus the near-black button fill
 - **Captures aren't undoable.** Record and Stop take a snapshot; neither they
   nor the animation transport (Play, To start) push undo entries. Undo is for
   editing the diagram, not for scrubbing the animation.
-- **Record and Play, with no separate stop.** Pressing Play ends the recording:
-  whatever moved since Record *is* the play. If nothing has moved — the coach
-  just rewound — the stored play replays rather than collapsing into a play
-  where nothing happens. Two buttons, because the old "Start" read as a
-  transport control, which is what made pressing it feel safe when it was
-  actually overwriting the recording. The record button carries the state:
-  Record, then Recording…, then Re-record.
+- **Record, Stop, Play.** Record snapshots the start. While recording, the same
+  button becomes Stop: it stores the current board as the end and rewinds
+  everyone to the start, so Play is ready by default. Stopping with nothing
+  moved cancels the recording. Play can still close an open recording the old
+  way — whatever moved since Record *is* the play — and if nothing has moved
+  (just stopped or rewound) the stored play replays rather than collapsing into
+  a play where nothing happens. The record button carries the state: Record,
+  then Stop, then Re-record.
 - **The ball travels its route, not a straight line.** Everything else tweens
   from where it started to where it ended; a ball that did that could never show
   a relay. Instead the coach taps out where the ball goes — each tap snapping to

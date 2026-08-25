@@ -243,11 +243,41 @@ describe('the bug this guard prevents', () => {
     s = diagramReducer(s, { type: 'captureEnd' });
     expect(s.start![id]).not.toEqual(s.end![id]);
 
-    // Pressing record again here is what silently destroyed the play.
-    const clobbered = diagramReducer(s, { type: 'captureStart' });
-    expect(clobbered.start![id]).toEqual(clobbered.end![id]);
-    // Which is exactly the state the UI now refuses to reach.
+    // Pressing record again here used to silently destroy the play by aligning
+    // start with end. Re-record now clears the end and starts a fresh recording.
+    const restarted = diagramReducer(s, { type: 'captureStart' });
+    expect(restarted.start![id]).toEqual({ x: 100, y: 100 });
+    expect(restarted.end).toBeNull();
+    // hasMovedFrom still flags a board left at the old end — useful if Play
+    // closes a recording without rewinding first.
     expect(hasMovedFrom(s.tokens, s.start)).toBe(true);
+  });
+});
+
+describe('stopRecording', () => {
+  it('stores the end and rewinds tokens to the start', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    const id = s.tokens[0].id;
+    const startPos = s.start![id];
+    s = diagramReducer(s, { type: 'moveToken', id, x: 100, y: 100 });
+    s = diagramReducer(s, { type: 'stopRecording' });
+
+    expect(s.end![id]).toEqual({ x: 100, y: 100 });
+    expect(s.tokens[0]).toMatchObject(startPos);
+    expect(s.start![id]).toEqual(startPos);
+    expect(s.undoStack).toHaveLength(1); // the move stays undoable; stop itself is not
+  });
+
+  it('cancels when nothing has moved', () => {
+    let s = diagramReducer(initialState(), { type: 'captureStart' });
+    s = diagramReducer(s, { type: 'stopRecording' });
+    expect(s.start).toBeNull();
+    expect(s.end).toBeNull();
+  });
+
+  it('is a no-op before recording starts', () => {
+    const s0 = initialState();
+    expect(diagramReducer(s0, { type: 'stopRecording' })).toBe(s0);
   });
 });
 

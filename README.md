@@ -48,8 +48,9 @@ to `main` — enable it once under Settings → Pages → Source: GitHub Actions
 | **New play** | Clear runners, the ball and drawings, and send the fielders home. |
 
 To animate: press **Record**, move the players where they should end up, then
-press **Play** — whatever moved is the play. The rewind button puts everyone
-back at the start.
+press **Stop** — that saves the play and puts everyone back at the start so
+**Play** is ready. You can also press Play while still recording; whatever
+moved is the play. The rewind button puts everyone back at the start anytime.
 
 To show the ball travelling, pick the route tool and tap each place it goes —
 the fielder, the bag, the plate. Taps snap to whatever is under them, and the
