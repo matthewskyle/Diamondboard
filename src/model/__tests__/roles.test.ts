@@ -64,18 +64,11 @@ describe('roleFor', () => {
 });
 
 describe('playsForPosition', () => {
-  it('gives every position a worthwhile set of plays', () => {
+  it('gives every position a full 25-play study block', () => {
     for (const label of POSITIONS) {
       const plays = playsForPosition(PLAYS, label);
-      expect(plays.length, label).toBeGreaterThan(3);
-      expect(plays.length, label).toBeLessThanOrEqual(POSITION_PLAY_LIMIT);
+      expect(plays.length, label).toBe(POSITION_PLAY_LIMIT);
     }
-  });
-
-  it('keeps the infield busiest, which is where the ball goes', () => {
-    expect(playsForPosition(PLAYS, 'SS').length).toBeGreaterThan(
-      playsForPosition(PLAYS, 'RF').length,
-    );
   });
 
   it('is ordered the way the library displays it, so the count matches the list', () => {

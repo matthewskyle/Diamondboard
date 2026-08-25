@@ -3,9 +3,9 @@ import { compilePlay, PLAYS, PLAY_CATEGORIES } from '../plays';
 import { BASES, HOME, VIEW_BOX, MIN_VIEW_HEIGHT, TOKEN_RADIUS } from '../fieldGeometry';
 
 describe('the play library', () => {
-  it('has 50 plays with unique ids', () => {
-    expect(PLAYS).toHaveLength(50);
-    expect(new Set(PLAYS.map((p) => p.id)).size).toBe(50);
+  it('has 150 plays with unique ids', () => {
+    expect(PLAYS).toHaveLength(150);
+    expect(new Set(PLAYS.map((p) => p.id)).size).toBe(150);
   });
 
   it('describes every play for a coach', () => {
