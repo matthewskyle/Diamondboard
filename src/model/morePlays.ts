@@ -398,7 +398,7 @@ function outfieldSeries(of: Outfield): PlayDef[] {
       ball: [
         HOME,
         { fielder: of.label },
-        { fielder: cutManFor('home', of.label, feetOf(of.shallow)!, { caught: true })[0] },
+        { fielder: cutManFor('home', of.label, feetOf(of.shallow)!)[0] },
       ],
       roles: {
         [of.label]: 'Catch it coming in and throw to the cut man so the runner stays put.',

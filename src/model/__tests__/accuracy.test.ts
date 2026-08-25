@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { compilePlay, PLAYS } from '../plays';
+import { BATTERS_BOX, compilePlay, PLAYS } from '../plays';
 import { assignDefense, AT_BASE_FT, caughtInTheAir, isOutfield, throwTargets } from '../defense';
+import { basesBetween, LEAD_FT, leadOff, runnerRouteFeet, SWING_FT } from '../baseRunning';
 import { BASE_FEET, feetAt, feetBetween, feetOf, type Feet } from '../spots';
 import { BASES, FIELDER_SPOTS, TOKEN_RADIUS } from '../fieldGeometry';
 import type { BaseName, PlayDef, Spot } from '../playTypes';
@@ -142,11 +143,11 @@ describe('nobody stands anywhere silly', () => {
 });
 
 describe('the doctrine is the same on every play', () => {
-  it('cuts throws home with the first baseman, bar the one case that is not him', () => {
-    // The third baseman takes it on a ball on the ground through left field, and
-    // nowhere else: not on a ball to centre or right, not on anything an
-    // outfielder caught — a runner is tagging up and third base is live — and
-    // not behind a relay man, because he is never the front half of a double cut.
+  it('cuts a throw home with the corner nearest the ball', () => {
+    // The third baseman on anything the left fielder throws home, hit or caught,
+    // and the first baseman on anything from centre or right. The exception is a
+    // double cut: behind a relay man the third baseman is never the front half,
+    // because on a ball hit that deep he is waiting at third on the trail runner.
     const wrong: string[] = [];
     for (const play of PLAYS) {
       const { jobs } = assignDefense(play);
@@ -155,16 +156,32 @@ describe('the doctrine is the same on every play', () => {
       const cut = POSITIONS.find((l) => jobs[l].kind === 'cut' && jobs[l].base === 'home');
       if (!cut) continue;
       const relayed = POSITIONS.some((l) => jobs[l].kind === 'relay');
-      const thirdsBall = fielder === 'LF' && !relayed && !caughtInTheAir(play);
-      const expected = thirdsBall ? '3B' : '1B';
+      const expected = fielder === 'LF' && !relayed ? '3B' : '1B';
       if (cut !== expected) wrong.push(`${play.id}: ${cut} cutting a throw home from ${fielder}`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('leaves somebody on third whenever the third baseman goes out to cut', () => {
+    // The third baseman taking a throw home from left is only correct because
+    // the shortstop is behind him on the bag. If that half of the exchange ever
+    // goes missing, the exception has to go with it.
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      const { jobs } = assignDefense(play);
+      if (jobs['3B'].kind !== 'cut' && jobs['3B'].kind !== 'relay') continue;
+      const ends = fielderFeet(play);
+      const on = POSITIONS.filter(
+        (l) => l !== '3B' && feetBetween(ends[l], BASE_FEET.third) <= AT_BASE_FT,
+      );
+      if (on.length === 0) wrong.push(`${play.id}: third baseman cut, nobody on third`);
     }
     expect(wrong).toEqual([]);
   });
 
   it('leaves third base covered on every ball an outfielder catches', () => {
     // A caught ball means a runner tagging up, and a runner tagging up means a
-    // throw behind him. The third baseman does not leave for a cut on those.
+    // throw behind him. Somebody is on the bag for it either way.
     const wrong: string[] = [];
     for (const play of PLAYS) {
       if (!caughtInTheAir(play)) continue;
@@ -173,6 +190,27 @@ describe('the doctrine is the same on every play', () => {
       const ends = fielderFeet(play);
       const on = POSITIONS.filter((l) => feetBetween(ends[l], BASE_FEET.third) <= AT_BASE_FT);
       if (on.length === 0) wrong.push(`${play.id}: nobody on third`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('works a relay with both middle infielders', () => {
+    // A double cut is two men. The other middle infielder trails the relay, or
+    // he is standing on the bag the throw is coming to — but he is never
+    // watching, because a relay that gets past one man with nobody behind him
+    // is a ball loose in the infield while the runners keep going.
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      const { jobs } = assignDefense(play);
+      for (const relay of POSITIONS) {
+        if (jobs[relay].kind !== 'relay') continue;
+        for (const label of ['2B', 'SS'] as const) {
+          if (label === relay) continue;
+          if (jobs[label].kind === 'idle') {
+            wrong.push(`${play.id}: ${label} watching ${relay} relay it`);
+          }
+        }
+      }
     }
     expect(wrong).toEqual([]);
   });
@@ -231,7 +269,10 @@ describe('the doctrine is the same on every play', () => {
       }
       for (const label of POSITIONS) {
         const job = jobs[label];
-        if (job.kind !== 'cut' && job.kind !== 'relay') continue;
+        // A relay man is not held to this. He goes out on a ball off the wall,
+        // where his bag is a bag nobody is being thrown out at, and the man who
+        // would have stood on it is behind him instead.
+        if (job.kind !== 'cut') continue;
         const own = { '1B': 'first', '2B': 'second', SS: 'second', '3B': 'third' }[label] as
           | BaseName
           | undefined;
@@ -250,6 +291,45 @@ describe('the doctrine is the same on every play', () => {
 });
 
 describe('the runners run like runners', () => {
+  it('stays on the base paths the whole way', () => {
+    // Measured in feet, against the straight line from bag to bag, because that
+    // is where the path was built and it is the only place the numbers mean
+    // anything: the board is drawn foreshortened, so a bow that is five feet
+    // wide at first is a different shape on screen than the same bow at third.
+    // The allowance is the turn itself, plus the lead a runner takes off the bag.
+    const allowed = SWING_FT + LEAD_FT + 1;
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      for (const { name, route, legs } of runnerRoutesInFeet(play)) {
+        const stray = Math.max(...route.map((p) => toBasePaths(p, legs)));
+        if (stray > allowed) {
+          wrong.push(`${play.id}: ${name} runs ${stray.toFixed(0)} ft off the base paths`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('rounds the bags instead of cornering them', () => {
+    // Every vertex of a drawn route is a corner, so the test of whether a runner
+    // is rounding a bag or turning on a dime is how sharp the sharpest one is.
+    // A stride either side of the bag is where cornering shows up.
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      for (const { name, route, legs, bags } of runnerRoutesInFeet(play)) {
+        if (bags.length === 0) continue; // a straight leg has nothing to round
+        const worst = Math.max(...corners(route));
+        if (worst > 12) {
+          wrong.push(`${play.id}: ${name} turns ${worst.toFixed(0)} degrees in one stride`);
+        }
+        // And the turn has to actually be a turn, not a line with a name on it.
+        const bowed = Math.max(...route.map((p) => toBasePaths(p, legs)));
+        if (bowed < 2) wrong.push(`${play.id}: ${name} corners the bag flat`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
   it('touches every bag on the way instead of cutting the corner', () => {
     const wrong: string[] = [];
     for (const play of PLAYS) {
@@ -336,6 +416,79 @@ function offTheLine(a: Feet, b: Feet, p: Feet): number {
   const span = feetBetween(a, b);
   if (span === 0) return feetBetween(a, p);
   return Math.abs((b.x - a.x) * (a.y - p.y) - (b.y - a.y) * (a.x - p.x)) / span;
+}
+
+/**
+ * Every runner on a play, with his route and the straight base-path route he is
+ * supposed to be following, both in feet. Rebuilt from the play rather than read
+ * off the compiled board, because the board is projected and the projection is
+ * what makes distances on it unusable for this.
+ */
+function runnerRoutesInFeet(
+  play: PlayDef,
+): { name: string; route: Feet[]; legs: Feet[]; bags: BaseName[] }[] {
+  const out: { name: string; route: Feet[]; legs: Feet[]; bags: BaseName[] }[] = [];
+  const runners = [
+    ...(play.batterTo ? [{ from: BATTERS_BOX, to: play.batterTo, batter: true }] : []),
+    ...(play.runners ?? []).map((runner) => ({ ...runner, batter: false })),
+  ];
+  for (const runner of runners) {
+    const diveBack =
+      runner.to && 'base' in runner.from && 'base' in runner.to && runner.from.base === runner.to.base;
+    const bag =
+      diveBack || !('base' in runner.from) || runner.from.base === 'home' ? null : runner.from.base;
+    const start = bag ? leadOff(bag) : feetOf(runner.from)!;
+    const from = diveBack && 'base' in runner.from ? leadOff(runner.from.base) : start;
+    const to = runner.to ? feetOf(runner.to)! : from;
+    const bags = runner.to && !diveBack ? basesBetween(from, to) : [];
+    out.push({
+      name: runner.batter ? 'the batter' : runnerName(runner.from, runner.to),
+      route: runnerRouteFeet(from, to, bags),
+      legs: [from, ...bags.map((b) => BASE_FEET[b]), to],
+      bags,
+    });
+  }
+  return out;
+}
+
+function runnerName(from: Spot, to: Spot | undefined): string {
+  const where = (spot: Spot | undefined) =>
+    spot === undefined ? 'nowhere' : 'base' in spot ? spot.base : 'between bags';
+  return `${where(from)} to ${where(to)}`;
+}
+
+/** Distance from a point to the nearest of the straight legs, in feet. */
+function toBasePaths(p: Feet, legs: Feet[]): number {
+  let best = Infinity;
+  for (let i = 0; i < legs.length - 1; i++) {
+    best = Math.min(best, toSegment(legs[i], legs[i + 1], p));
+  }
+  return best;
+}
+
+function toSegment(a: Feet, b: Feet, p: Feet): number {
+  const span = feetBetween(a, b);
+  if (span === 0) return feetBetween(a, p);
+  const t = Math.max(
+    0,
+    Math.min(1, ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / (span * span)),
+  );
+  return feetBetween(p, { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+}
+
+/** How far the route turns at each of its vertices, in degrees. */
+function corners(route: Feet[]): number[] {
+  const out: number[] = [0];
+  for (let i = 1; i < route.length - 1; i++) {
+    const a = { x: route[i].x - route[i - 1].x, y: route[i].y - route[i - 1].y };
+    const b = { x: route[i + 1].x - route[i].x, y: route[i + 1].y - route[i].y };
+    const la = Math.hypot(a.x, a.y);
+    const lb = Math.hypot(b.x, b.y);
+    if (la < 0.01 || lb < 0.01) continue;
+    const cos = (a.x * b.x + a.y * b.y) / (la * lb);
+    out.push((Math.acos(Math.min(1, Math.max(-1, cos))) * 180) / Math.PI);
+  }
+  return out;
 }
 
 type Pt = { x: number; y: number };

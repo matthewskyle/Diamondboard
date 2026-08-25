@@ -153,32 +153,35 @@ export function sideOf(feet: Feet): 'left' | 'centre' | 'right' {
 }
 
 /**
- * What kind of throw home this is, for the one rule that turns on it: whether
- * the third baseman can afford to leave third base.
+ * What kind of throw this is, for the rules that turn on it.
  */
 export interface ThrowKind {
-  /** There is a relay man in front of the cut man. */
+  /** There is a relay man out in the grass in front of the cut man. */
   relayed?: boolean;
-  /** An outfielder caught it in the air. */
-  caught?: boolean;
 }
 
 /**
  * The cut man on a throw from the outfield to a base, in preference order.
  *
- * To the plate it is normally the first baseman. The third baseman takes it in
- * exactly one case — a ball on the ground through left field — and that case is
- * narrow for a reason: he is the nearest corner to the ball, so he is the man
- * who can be lined up in time, and a single to left with the run coming is a
- * play where nobody is going to third anyway. Anything else and he stays on the
- * bag. On a ball he watched an outfielder catch there is a runner tagging up and
- * third base is live, and behind a relay man he is never the front half of a
- * double cut, because on a ball that deep he is waiting on the runner behind
- * the one that is scoring.
+ * To the plate it is the corner nearest the ball: the third baseman on anything
+ * the left fielder throws, the first baseman on anything from centre or right.
+ * The point of the rule is that the outfielder makes the long throw and the man
+ * who can be lined up in time takes it, and from left that man is the third
+ * baseman — he is closer to the catcher, so the catcher can talk to him, and he
+ * is already on that side of the diamond. The shortstop covers third behind
+ * him. This is the one piece of the alignment that surprises people, so it is
+ * worth being plain: the third baseman leaving third on a ball to left is not a
+ * mistake, it is the play, and the bag is not left empty when he goes.
+ *
+ * The exception is a double cut. Behind a relay man the third baseman is never
+ * the front half — on a ball hit that deep he is waiting at third on the runner
+ * behind the one that is scoring — so the first baseman takes it.
  *
  * To second or third it is the middle infielder on the ball's side, who is
  * already moving that way and can keep the runner in front of him. That leaves
- * each bag to the man who is not looking away from it.
+ * each bag to the man who is not looking away from it. A throw that already has
+ * a relay man gets no second man in front of the bag: the other middle
+ * infielder trails the relay instead, which is what a double cut is.
  *
  * Nobody cuts a throw to first base — it is short, and the bag has an owner.
  */
@@ -190,10 +193,16 @@ export function cutManFor(
 ): string[] {
   if (base === 'first' || base === 'mound') return [];
   if (base === 'home') {
-    if (throwKind.relayed || throwKind.caught) return ['1B'];
+    if (throwKind.relayed) return ['1B'];
     return fielder === 'LF' ? ['3B', '1B'] : ['1B', '3B'];
   }
+  if (throwKind.relayed) return [];
   return sideOf(feet) === 'right' ? ['2B', 'SS'] : ['SS', '2B'];
+}
+
+/** The middle infielder who trails a relay man, in case the throw gets by him. */
+export function trailManFor(relay: string): string[] {
+  return relay === 'SS' ? ['2B'] : relay === '2B' ? ['SS'] : [];
 }
 
 /** The middle infielder who goes out as the relay man on a ball to the wall. */
@@ -502,6 +511,10 @@ function assign(play: PlayDef): Defense {
   const ballFeet = touches.length > 0 ? stopFeet(route[touches[0]]) : stopFeet(route[0]);
   const fromOutfield = fielderOfBall !== null && isOutfield(fielderOfBall);
   const throws = throwTargets(play);
+  // The bags that are live: somewhere a runner is going, or somewhere the ball
+  // is thrown. Any other bag is a place to stand rather than a job, and sending
+  // a man to one costs the play somebody it needed elsewhere.
+  const live = new Set<BaseName>([...headedFor, ...throws.map((t) => t.base)]);
 
   // 1. A ball that starts on a base already belongs to somebody: the catcher
   //    behind the plate, the pitcher picking a runner off, whoever is standing
@@ -583,7 +596,7 @@ function assign(play: PlayDef): Defense {
     if (!thrower || !isOutfield(thrower)) continue;
     if (Object.values(jobs).some((job) => job.kind === 'cut' && job.base === base)) continue;
     const relayed = Object.values(jobs).some((job) => job.kind === 'relay');
-    const label = claim(cutManFor(base, thrower, ballFeet, { relayed, caught: caughtInTheAir(play) }));
+    const label = claim(cutManFor(base, thrower, ballFeet, { relayed }));
     if (!label) continue;
     take(label, cutSpot(ballFeet, base), { kind: 'cut', base });
   }
@@ -594,10 +607,14 @@ function assign(play: PlayDef): Defense {
   //     that. Settle it the other way round and the first baseman goes out to
   //     cut a throw home while the second baseman is already standing on second,
   //     leaving first base empty with a runner on it.
+  //
+  //     A relay man is not in this. He is out in the grass on a ball nobody is
+  //     being thrown out at second on, and the man who would relieve him has a
+  //     better job: getting behind him.
   for (const [label, job] of Object.entries(jobs)) {
-    if (job.kind !== 'cut' && job.kind !== 'relay') continue;
+    if (job.kind !== 'cut') continue;
     const vacated = HOME_BASE_OF[label];
-    if (!vacated || vacated === job.base || covered(vacated)) continue;
+    if (!vacated || vacated === job.base || !live.has(vacated) || covered(vacated)) continue;
     const relief = claimFree(RELIEF_FOR[label] ?? []);
     if (relief) take(relief, { base: vacated }, { kind: 'cover', base: vacated });
   }
@@ -615,6 +632,24 @@ function assign(play: PlayDef): Defense {
     const label = claimFree(coverFor(base, ballFeet, thrower, fromOutfield));
     if (!label) continue;
     take(label, { base }, { kind: 'receive', base, arrival: 'throw' });
+  }
+
+  // 4b. The trail man on a double cut. A ball to the wall is too far for one
+  //     throw, so a middle infielder goes out to meet it — and the other one
+  //     goes with him, twenty yards behind, because a relay that gets past the
+  //     relay man with nobody there is a ball loose in the middle of the
+  //     infield while the runners keep going. He comes after the bags the ball
+  //     is actually thrown to, though: a man standing on a bag the throw is
+  //     coming to is worth more than a man standing behind a man.
+  for (const [relay, job] of Object.entries(jobs)) {
+    if (job.kind !== 'relay' || !job.base) continue;
+    const label = claimFree(trailManFor(relay));
+    if (!label) continue;
+    take(label, spotOfFeet(beyond(ballFeet, fielderFeet(relay), BACKUP_BEHIND_FIELDER_FT)), {
+      kind: 'backup',
+      behind: relay,
+      base: job.base,
+    });
   }
 
   // 5. Any ball to the outfield: the infielders who are not lining up a throw
