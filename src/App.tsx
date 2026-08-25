@@ -10,8 +10,10 @@ import {
   resolvePlayback,
 } from './model/diagramState';
 import {
+  clamp01,
   durationForSpeed,
   dwellShareFor,
+  easeInOutCubic,
   interpolatePositions,
   pointAlongPath,
   type PlaybackSpeed,
@@ -30,7 +32,7 @@ export default function App() {
   const [loadedPlay, setLoadedPlay] = useState<PlayDef | null>(null);
   const [position, setPosition] = useState<string | null>(null);
 
-  const { start, end, ballRoute } = state;
+  const { start, end, ballRoute, runnerRoutes } = state;
 
   /** The two arrangements being tweened, fixed when Play is pressed. */
   const clip = useRef<{ from: PositionMap; to: PositionMap; route: readonly PositionMap[] } | null>(
@@ -42,6 +44,8 @@ export default function App() {
     path: { x: number; y: number }[];
     dwellShare: number;
   } | null>(null);
+  /** The base paths the runners cover, for a play that came with them. */
+  const runnerLegs = useRef<{ id: string; path: { x: number; y: number }[] }[]>([]);
 
   const { play, isPlaying } = useTween({
     durationMs: durationForSpeed(speed),
@@ -49,6 +53,12 @@ export default function App() {
       const current = clip.current;
       if (!current) return;
       const positions = interpolatePositions(current.from, current.to, t);
+      // Runners follow the base paths. They are people, so they share the
+      // fielders' easing rather than the ball's constant speed.
+      const eased = easeInOutCubic(clamp01(t));
+      for (const runner of runnerLegs.current) {
+        positions[runner.id] = pointAlongPath(runner.path, eased);
+      }
       const leg = ballLeg.current;
       // The ball follows its route instead of cutting straight across, and at a
       // constant speed, so a long throw takes longer than a short one.
@@ -81,8 +91,16 @@ export default function App() {
         ? { id: ball.id, path: ballRoute, dwellShare: dwellShareFor(ballRoute.length - 2) }
         : null;
 
+    // A stored route only describes the play it was loaded with. Once the board
+    // has been rearranged, whatever moved is the play, and it moves in a line.
+    runnerLegs.current = playback.captureEnd
+      ? []
+      : Object.entries(runnerRoutes)
+          .filter(([id, path]) => path.length > 2 && state.tokens.some((t) => t.id === id))
+          .map(([id, path]) => ({ id, path }));
+
     play();
-  }, [state.tokens, start, end, ballRoute, play]);
+  }, [state.tokens, start, end, ballRoute, runnerRoutes, play]);
 
   const handleToStart = useCallback(() => {
     if (start) dispatch({ type: 'setPositions', positions: start });

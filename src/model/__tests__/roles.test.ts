@@ -22,9 +22,15 @@ describe('roleFor', () => {
     expect(roleFor(play('3-1'), '1B').text).toBe('Field it and throw to the pitcher.');
   });
 
-  it('says to cover the bag when that is the whole job', () => {
-    expect(roleFor(play('6-4-3'), '1B')).toEqual({ involved: true, text: 'Cover first base.' });
-    expect(roleFor(play('steal-second'), 'SS').text).toBe('Cover second base.');
+  it('says to cover the bag, and whether a throw is coming to it', () => {
+    // On the 6-4-3 the relay finishes at first, so covering it means taking a
+    // throw. On a steal of third the shortstop takes the bag behind the play and
+    // may never be thrown to.
+    expect(roleFor(play('6-4-3'), '1B')).toEqual({
+      involved: true,
+      text: 'Cover first base and take the throw.',
+    });
+    expect(roleFor(play('cut-home-left'), 'SS').text).toBe('Cover third base.');
   });
 
   it('treats a catch that ends with a throw as the whole play', () => {

@@ -51,13 +51,16 @@ describe('the play library', () => {
   });
 
   it('does not gift first-to-third on a routine single', () => {
-    // On a single, the defense's job is to keep the lead runner at second. Gap
-    // and wall balls are the exception — those can legitimately make third.
+    // On a single the defense's job is to keep the lead runner at second. Two
+    // exceptions, both real: a ball that reaches the gap, the wall or a corner,
+    // and a ball to right field, where the throw comes from the far corner of
+    // the park and first to third is the play the runner is looking for.
     for (const play of PLAYS) {
-      const isGapOrWall = /gap|wall|corner|off the wall|carom/i.test(
+      const extraBases = /gap|wall|fence|corner|carom|reaches/i.test(
         `${play.id} ${play.name} ${play.situation}`,
       );
-      if (isGapOrWall) continue;
+      const toRight = /right/i.test(`${play.name} ${play.situation}`);
+      if (extraBases || toRight) continue;
       for (const runner of play.runners ?? []) {
         if (!('base' in runner.from) || !runner.to || !('base' in runner.to)) continue;
         if (runner.from.base === 'first' && runner.to.base === 'third') {
