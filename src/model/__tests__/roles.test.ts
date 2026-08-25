@@ -97,7 +97,10 @@ describe('playsForPosition', () => {
     for (const label of POSITIONS) {
       const grouped = playsForPosition(PLAYS, label);
       const plain = PLAYS.filter((p) => roleFor(p, label).involved);
-      expect(grouped).toEqual(plain.slice(0, POSITION_PLAY_LIMIT));
+      const regrouped = PLAY_CATEGORIES.flatMap((category) =>
+        plain.filter((p) => p.category === category),
+      );
+      expect(grouped).toEqual(regrouped.slice(0, POSITION_PLAY_LIMIT));
     }
   });
 
