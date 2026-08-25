@@ -215,23 +215,59 @@ describe('the doctrine is the same on every play', () => {
     expect(wrong).toEqual([]);
   });
 
-  it('lines up throws to second and third with the middle infielder on the ball side', () => {
-    // The shortstop on anything to left, the second baseman on anything to
-    // right. Straight up the middle either of them is on the line, so the only
-    // rule that matters there is that the one who does not line it up is the
-    // one standing on the bag — which the coverage checks already insist on.
+  it('cuts a throw to third with the shortstop, whatever field it is in', () => {
+    // He is the man who can be there. The cut spot in front of third is 57 feet
+    // from where the shortstop plays on a ball to centre and 73 on a ball to the
+    // right-field line; the second baseman would have to cover 106 and 99 to
+    // reach the same spot with the same runner going first to third.
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      const { jobs } = assignDefense(play);
+      const fielder = firstFielder(play);
+      if (!fielder || !isOutfield(fielder)) continue;
+      for (const label of POSITIONS) {
+        if (jobs[label].kind !== 'cut' || jobs[label].base !== 'third') continue;
+        if (label !== 'SS') {
+          wrong.push(`${play.id}: ${label} cutting a throw to third from ${fielder}`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('sends the middle infielder on the ball side out as the relay man', () => {
+    // A relay is about getting to the ball rather than to the bag, so this one
+    // goes the other way from the cut: the shortstop on anything to left, the
+    // second baseman on anything to right. Straight up the middle either of them
+    // is on the line, so the only rule that matters there is that the one who
+    // does not go out is the one behind him — which the relay check insists on.
     const wrong: string[] = [];
     for (const play of PLAYS) {
       const { jobs } = assignDefense(play);
       const fielder = firstFielder(play);
       if (!fielder || fielder === 'CF' || !isOutfield(fielder)) continue;
       for (const label of POSITIONS) {
-        const job = jobs[label];
-        if (job.kind !== 'cut' && job.kind !== 'relay') continue;
-        if (job.base !== 'second' && job.base !== 'third') continue;
+        if (jobs[label].kind !== 'relay') continue;
         const expected = fielder === 'RF' ? '2B' : 'SS';
         if (label !== expected) {
-          wrong.push(`${play.id}: ${label} lining up a throw to ${job.base} from ${fielder}`);
+          wrong.push(`${play.id}: ${label} relaying a throw to ${jobs[label].base} from ${fielder}`);
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('lines up a throw to second with the middle infielder on the ball side', () => {
+    const wrong: string[] = [];
+    for (const play of PLAYS) {
+      const { jobs } = assignDefense(play);
+      const fielder = firstFielder(play);
+      if (!fielder || fielder === 'CF' || !isOutfield(fielder)) continue;
+      for (const label of POSITIONS) {
+        if (jobs[label].kind !== 'cut' || jobs[label].base !== 'second') continue;
+        const expected = fielder === 'RF' ? '2B' : 'SS';
+        if (label !== expected) {
+          wrong.push(`${play.id}: ${label} lining up a throw to second from ${fielder}`);
         }
       }
     }

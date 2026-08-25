@@ -323,11 +323,11 @@ export const PLAYS: readonly PlayDef[] = [
     name: 'Single to right — throw to third',
     situation: 'Runner on first. Base hit to right; he takes second and looks at third.',
     category: 'Cutoffs and relays',
-    teaches: 'Ball to the right side, the second baseman lines up third. The throw is what makes him stop at second.',
+    teaches: 'The shortstop lines up every throw to third, even from right field — he is thirty feet closer to the spot than the second baseman is. The throw is what makes the runner stop at second.',
     batterTo: { base: 'first' },
     runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { RF: HIT.singleRight },
-    ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: '2B' }, { base: 'third' }],
+    ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: 'SS' }, { base: 'third' }],
   },
   {
     id: 'relay-gap',

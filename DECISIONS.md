@@ -112,6 +112,100 @@ the white lines do all the shape work — plus the near-black button fill
 - **New play** (the spec's Reset) restores the nine default fielders and clears
   runners, the ball, strokes, both captures, and the undo stack.
 
+## Who does what on a play
+
+A play says the things only a coach can say: what the batter did, where the ball
+went, who charges. Everything after that is doctrine, and doctrine does not
+change from play to play — so it is derived in `defense.ts` rather than written
+into all 150 plays. Fixing a responsibility fixes it everywhere at once, and no
+two plays can quietly disagree about who covers third.
+
+The alignment is the standard one. Where sources differ, the tie is broken by
+which man can actually get to the spot, measured on the field in feet.
+
+| Throw | Cut or relay man | Behind him |
+| --- | --- | --- |
+| Home, ball to left field | Third baseman | Shortstop covers third |
+| Home, ball to centre or right | First baseman | Second baseman covers first |
+| Home, behind a relay man | First baseman | Third baseman stays at third |
+| Third, any field | Shortstop | Second baseman covers second |
+| Second | Middle infielder on the ball's side | The other one covers the bag |
+| Relay on a ball to the wall | Middle infielder on the ball's side | The other one trails him |
+| First | Nobody — it is short and the bag has an owner | Right fielder backs it up |
+
+**The third baseman cutting a throw home from left field is the play, not a
+bug.** It is the one piece of the alignment that surprises people, so it is
+worth stating plainly: he is the corner nearest the ball, so he is the man the
+catcher can line up in time, and the shortstop covers third behind him. Sources
+agree, including on the case that looks like an exception and is not — a ball an
+outfielder *caught*. Pro Baseball Insider: "the only time you will need to be a
+cut off man is when there is a play at home plate and a ball is hit to the left
+fielder." *The Cutoff*: "hit **or fly** to LF, runner trying to score — the
+third baseman is the cutoff man… as soon as the shortstop is sure that the left
+fielder will catch the ball, he must sprint to cover third base." What decides
+it is whether there is a play at the plate, not how the ball got to the
+outfielder. The real exception is a double cut: behind a relay man he is never
+the front half, because on a ball hit that deep he is waiting at third on the
+runner behind the one that is scoring.
+
+**The shortstop cuts every throw to third, including from right field.** Two of
+three sources say so outright, and the geometry settles it: the cut spot in
+front of third is 57 ft from where the shortstop plays on a ball to centre and
+73 ft on one to the right-field line, where the second baseman would have to
+cover 106 and 99 to reach the same spot with the same runner going first to
+third. A *relay* goes the other way — that is about getting to the ball rather
+than to the bag, so the ball-side man goes out and his partner trails him.
+
+Two consequences worth naming, because they are what a coach notices when a
+diagram is wrong. A cut man stands 45 ft off the bag he is protecting, not out
+where a shortstop plays. And the man who leaves a bag to cut a throw has
+somebody behind him on it — a test asserts the shortstop is always on third when
+the third baseman goes out, so the two halves of that exchange cannot drift
+apart.
+
+**Every fielder has a job on every ball somebody hit.** Outfielders drift in
+behind the bag in front of them — left field third, centre second, right first —
+because an outfielder standing still on a ground ball is the thing every coach
+shouts about, and the habit is what keeps an overthrow from being a
+two-hundred-foot error. An infielder whose bag his partner is standing on gets
+behind it, which is where he has to be for the throw that gets through and the
+rundown that follows. On a ball nobody hit — a steal, a pickoff, a back-pick —
+the far corners of the outfield have no business anywhere, and the board says
+so rather than inventing work for them.
+
+## How runners run
+
+Everything else on the board can tween in a straight line, because a fielder
+running to a spot does run in a straight line. A runner cannot. He is on the
+base paths, so a man scoring from second goes by way of third rather than across
+the mound, and he does not corner a bag like a train changing tracks either: he
+bows out a stride before it, brushes the inside corner, and pushes off toward
+the next one.
+
+The bow is not a free choice. It has two jobs — leave the base path without a
+kink a stride or two out, and reach the bag at forty-five degrees to it, which
+is what "already heading for the next one" means and also what makes the two
+halves meet smoothly on the bag. Those two conditions fix the shape, which comes
+out about 4.6 ft outside the line and costs the runner about 4 ft per turn.
+
+**It is worked out in feet and projected at the end.** It has to be. The board is
+drawn foreshortened, so a right angle at first base is not a right angle on
+screen and a perpendicular measured on screen is not perpendicular to anything.
+A bow built in view units comes out a different shape at first than at third,
+which is exactly the tell that a runner is following a curve somebody drew rather
+than a path he ran. The tests measure in feet for the same reason.
+
+**The strides are placed by how hard the curve is bending**, not at even
+distances. Nearly all of the turning happens within a few feet of the bag, so
+even spacing spends its points out where the path is already straight and leaves
+the bag itself a corner — the one thing the bow exists to remove. What the
+placement totals up is the turning along the curve rather than the difference
+between its two ends, because the lean does not run one way: the runner swings
+out, levels off, and comes back, so a stride can begin and end at much the same
+angle having swung ten degrees in between. Reading only the ends put a
+22-degree corner in every route; totalling the turning brings the sharpest
+corner in any route down to 8 degrees.
+
 ## Learning one position
 
 A player asking "what do I do?" wants a different cut of the same data than a

@@ -177,11 +177,21 @@ export interface ThrowKind {
  * the front half — on a ball hit that deep he is waiting at third on the runner
  * behind the one that is scoring — so the first baseman takes it.
  *
- * To second or third it is the middle infielder on the ball's side, who is
- * already moving that way and can keep the runner in front of him. That leaves
- * each bag to the man who is not looking away from it. A throw that already has
- * a relay man gets no second man in front of the bag: the other middle
- * infielder trails the relay instead, which is what a double cut is.
+ * To third it is the shortstop, whatever field the ball is in. He is the man who
+ * can be there: from his own position the cut spot in front of third is 57 feet
+ * away on a ball to centre and 73 on a ball to the right-field line, where the
+ * second baseman would have to cover 106 and 99 to reach the same spot with the
+ * same runner going first to third. The second baseman covers second behind
+ * him, which is the bag he is already next to.
+ *
+ * To second it is the middle infielder on the ball's side, who is moving that
+ * way anyway and can keep the runner in front of him, leaving the bag to the
+ * one who is not looking away from it.
+ *
+ * A throw that already has a relay man gets no second man in front of the bag:
+ * the other middle infielder trails the relay instead, which is what a double
+ * cut is. Which of them goes out is `relayManFor` — the ball-side man, because
+ * a relay is about getting to the ball rather than to the bag.
  *
  * Nobody cuts a throw to first base — it is short, and the bag has an owner.
  */
@@ -197,6 +207,7 @@ export function cutManFor(
     return fielder === 'LF' ? ['3B', '1B'] : ['1B', '3B'];
   }
   if (throwKind.relayed) return [];
+  if (base === 'third') return ['SS', '2B'];
   return sideOf(feet) === 'right' ? ['2B', 'SS'] : ['SS', '2B'];
 }
 
@@ -289,6 +300,41 @@ function backupFor(base: BaseName): string[] {
 const BACKUPS_PER_BASE = 2;
 
 /**
+ * The bag an outfielder is looking at, and so the one he drifts in behind when
+ * the play does not otherwise want him. The three of them cover three bases
+ * between them; nobody is behind the plate, because that is the pitcher's.
+ */
+const BAG_IN_FRONT_OF: Record<string, BaseName> = {
+  LF: 'third',
+  CF: 'second',
+  RF: 'first',
+};
+
+/**
+ * Who gets behind an infielder fielding a ball, in preference order.
+ *
+ * The middle infielder on the ball's side, because his partner has second base
+ * and he does not: a ball that gets through the corner goes past him rather
+ * than through to the outfield. A ball at the pitcher or the catcher has
+ * nobody, and should not — the men either side of them have bags to be on, and
+ * a comebacker that gets through is a base hit whoever is standing where.
+ */
+function infieldSupport(fielder: string, ball: Feet): string[] {
+  switch (fielder) {
+    case '3B':
+      return ['SS'];
+    case '1B':
+      return ['2B'];
+    case 'SS':
+      return ['3B'];
+    case '2B':
+      return ['1B'];
+    default:
+      return sideOf(ball) === 'right' ? ['2B'] : ['SS'];
+  }
+}
+
+/**
  * Is the pitcher standing in this throw rather than able to get behind it?
  *
  * A throw to second base from the plate goes straight over the mound. He cannot
@@ -373,11 +419,6 @@ export function relaySpot(ball: Feet, base: BaseName): Spot {
  */
 export function cutSpot(ball: Feet, base: BaseName): Spot {
   return spotOfFeet(shortOf(ball, BASE_FEET[base], CUT_FROM_BASE_FT));
-}
-
-/** Where a backup stands: behind the bag, in line with the throw coming to it. */
-export function backupSpot(ball: Feet, base: BaseName, feetBehind = BACKUP_BEHIND_FT): Spot {
-  return spotOfFeet(beyond(ball, BASE_FEET[base], feetBehind));
 }
 
 export function isOutfield(label: string): boolean {
@@ -484,6 +525,32 @@ function assign(play: PlayDef): Defense {
     spots[label] = spot;
     jobs[label] = job;
     busy.add(label);
+  }
+
+  /** How many men are already behind each bag, so the next one sets up deeper. */
+  const behind = new Map<BaseName, number>();
+
+  /**
+   * Put a man behind a bag, in line with the throw coming to it and far enough
+   * back to be useful. Each man after the first goes a layer deeper: two men at
+   * the same depth are one man, and a ball through the first of them ought to
+   * still be in front of somebody.
+   */
+  function backUp(label: string, base: BaseName): void {
+    const layer = behind.get(base) ?? 0;
+    behind.set(base, layer + 1);
+    const depth = backupDepthFor(label) + layer * BACKUP_LAYER_FT;
+    take(
+      label,
+      spotOfFeet(
+        towardCapped(
+          DEFAULT_FEET[label],
+          beyond(throwOriginFor(base), BASE_FEET[base], depth),
+          runLimitFor(label),
+        ),
+      ),
+      { kind: 'backup', base },
+    );
   }
 
   const route = play.ball;
@@ -731,23 +798,16 @@ function assign(play: PlayDef): Defense {
     }
   }
 
-  // 9. Backing up the throws: the man in front of the bag, and the infielder
-  //    who owns it and is not on it.
-  for (const { base } of throws) {
+  // 9. Backing up the bags: the man in front of each one, and the infielder who
+  //    owns it and is not standing on it. Every bag that is live, not only the
+  //    ones the ball actually reaches — a runner stealing second is a throw to
+  //    second whether or not the catcher lets go of it, and the man behind the
+  //    bag has to have left before anybody knows.
+  for (const base of live) {
     for (let taken = 0; taken < BACKUPS_PER_BASE; taken++) {
       const label = claimFree(backupFor(base));
       if (!label) break;
-      take(
-        label,
-        spotOfFeet(
-          towardCapped(
-            DEFAULT_FEET[label],
-            beyond(throwOriginFor(base), BASE_FEET[base], backupDepthFor(label)),
-            runLimitFor(label),
-          ),
-        ),
-        { kind: 'backup', base },
-      );
+      backUp(label, base);
     }
   }
 
@@ -772,11 +832,60 @@ function assign(play: PlayDef): Defense {
   // 10b. An infielder with nothing else to do is on his own bag. That is the
   //      job the position is named after, and on a ball in play he goes there
   //      rather than watching from where he happened to be standing.
-  for (const label of ['1B', '2B', 'SS', '3B'] as const) {
+  //
+  //      Second base is the one they share, and which of them takes it is
+  //      settled by where the ball went: on anything to the left side the
+  //      second baseman covers, on anything to the right the shortstop does.
+  //      Getting that the wrong way round leaves the man the ball was hit at
+  //      running away from it to stand on a bag his partner could have had.
+  const ownBags = sideOf(ballFeet) === 'right' ? ['1B', 'SS', '2B', '3B'] : ['1B', '2B', 'SS', '3B'];
+  for (const label of ownBags) {
     if (busy.has(label) || spots[label]) continue;
     const own = HOME_BASE_OF[label];
     if (covered(own)) continue;
     take(label, { base: own }, { kind: 'cover', base: own });
+  }
+
+  // 10c. Every outfielder is moving on every ball somebody hit, and the thing
+  //      he is moving toward is the bag in front of him: the left fielder
+  //      third, the centre fielder second, the right fielder first. He will not
+  //      get there on a bunt and it does not matter — the habit is what keeps
+  //      an overthrow from being a two-hundred-foot error, and an outfielder
+  //      standing still on a ground ball is the thing every coach shouts about.
+  //
+  //      A ball nobody hit is different. On a steal or a back-pick the throw
+  //      has one man behind it and the other two corners of the outfield have
+  //      no business anywhere: they are watching, and saying so is honest.
+  for (const label of batted ? OUTFIELD : []) {
+    if (busy.has(label) || spots[label]) continue;
+    backUp(label, BAG_IN_FRONT_OF[label]);
+  }
+
+  // 10d. And an infielder still spare gets behind whoever is fielding it. On a
+  //      ball to one side of the infield the middle infielder on that side is
+  //      the man: his partner has second base, so a ball through the corner
+  //      goes past him rather than into the outfield.
+  if (fielderOfBall && !fromOutfield && inFairGround(ballFeet)) {
+    const label = claimFree(infieldSupport(fielderOfBall, ballFeet));
+    if (label) {
+      take(
+        label,
+        spotOfFeet(beyond(BASE_FEET.home, ballFeet, BACKUP_BEHIND_FIELDER_FT)),
+        { kind: 'backup', behind: fielderOfBall },
+      );
+    }
+  }
+
+  // 10e. An infielder whose bag somebody else is standing on gets behind it.
+  //      Two men converge on second on half the plays in the book and only one
+  //      of them can have the bag; the other is a stride behind it, which is
+  //      where he has to be for the throw that gets through and the rundown
+  //      that follows. His own bag rather than the one the throw is going to,
+  //      because a shortstop sprinting across the diamond to stand behind first
+  //      base arrives after everything has already happened.
+  for (const label of batted ? (['SS', '2B', '3B', '1B'] as const) : []) {
+    if (busy.has(label) || spots[label]) continue;
+    backUp(label, HOME_BASE_OF[label]);
   }
 
   // 11. Anyone the play moved without saying why. A bag is coverage; a spot in
