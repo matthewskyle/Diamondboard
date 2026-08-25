@@ -64,8 +64,9 @@ the board originally ran at.
 to playing a ball off the wall. Pick one and press Play.
 
 Picking a **position** in that list turns it into a study session for one
-player: it narrows to the plays they have a job in, says what that job is, rings
-them on the field, and gives you prev/next to walk through the lot.
+player: it narrows to that position's top 25 plays in library order, says what
+that job is, rings them on the field, and gives you prev/next to walk through
+the lot.
 
 ## Layout
 
@@ -75,7 +76,7 @@ src/
     fieldGeometry.ts   field dimensions, base and fielder positions, the SVG paths
     diagramState.ts    tokens, strokes, and the undo stack (a reducer)
     tween.ts           interpolation between two arrangements, and along a route
-    plays.ts           the 25-play library, and the compiler that loads one
+    plays.ts           the 50-play library, and the compiler that loads one
     hitTest.ts         what a tap landed on
     path.ts            stroke smoothing and point/segment math
   components/     # FieldSurface (static), FieldStage (pointer input), TokenLayer,

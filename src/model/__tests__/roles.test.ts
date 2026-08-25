@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { POSITIONS, POSITION_NAMES, playsForPosition, roleFor } from '../roles';
+import { POSITIONS, POSITION_NAMES, POSITION_PLAY_LIMIT, playsForPosition, roleFor } from '../roles';
 import { PLAYS, PLAY_CATEGORIES } from '../plays';
 
 const play = (id: string) => PLAYS.find((p) => p.id === id)!;
@@ -68,7 +68,7 @@ describe('playsForPosition', () => {
     for (const label of POSITIONS) {
       const plays = playsForPosition(PLAYS, label);
       expect(plays.length, label).toBeGreaterThan(3);
-      expect(plays.length, label).toBeLessThanOrEqual(PLAYS.length);
+      expect(plays.length, label).toBeLessThanOrEqual(POSITION_PLAY_LIMIT);
     }
   });
 
@@ -80,7 +80,7 @@ describe('playsForPosition', () => {
 
   it('is ordered the way the library displays it, so the count matches the list', () => {
     // Grouped by category, and in library order within each group. Stepping to
-    // "4 of 28" has to land on the fourth play a coach can actually see.
+    // "4 of 25" has to land on the fourth play a coach can actually see.
     for (const label of POSITIONS) {
       const plays = playsForPosition(PLAYS, label);
       const categoryOrder = plays.map((p) => PLAY_CATEGORIES.indexOf(p.category));
@@ -93,12 +93,14 @@ describe('playsForPosition', () => {
     }
   });
 
-  it('loses nothing by regrouping', () => {
+  it('keeps the first study-sized slice after regrouping', () => {
     for (const label of POSITIONS) {
       const grouped = playsForPosition(PLAYS, label);
       const plain = PLAYS.filter((p) => roleFor(p, label).involved);
-      expect(new Set(grouped.map((p) => p.id))).toEqual(new Set(plain.map((p) => p.id)));
-      expect(grouped).toHaveLength(plain.length);
+      const regrouped = PLAY_CATEGORIES.flatMap((category) =>
+        plain.filter((p) => p.category === category),
+      );
+      expect(grouped).toEqual(regrouped.slice(0, POSITION_PLAY_LIMIT));
     }
   });
 

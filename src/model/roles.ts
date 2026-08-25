@@ -24,6 +24,9 @@ export const POSITION_NAMES: Record<string, string> = {
   RF: 'Right field',
 };
 
+/** One practice block per position: the most important 25 in library order. */
+export const POSITION_PLAY_LIMIT = 25;
+
 const THE: Record<string, string> = {
   P: 'the pitcher',
   C: 'the catcher',
@@ -100,11 +103,12 @@ export function roleFor(play: PlayDef, label: string): Role {
 
 /**
  * The plays this position has a job in, grouped by category exactly as the
- * library displays them — so "4 of 28" is the fourth one you can see.
+ * library displays them — then capped for a one-position study session.
  */
 export function playsForPosition(plays: readonly PlayDef[], label: string): PlayDef[] {
   const involved = plays.filter((play) => roleFor(play, label).involved);
-  return PLAY_CATEGORIES.flatMap((category) =>
-    involved.filter((play) => play.category === category),
+  return PLAY_CATEGORIES.flatMap((category) => involved.filter((play) => play.category === category)).slice(
+    0,
+    POSITION_PLAY_LIMIT,
   );
 }
