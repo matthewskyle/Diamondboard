@@ -76,16 +76,22 @@ export function roleFor(play: PlayDef, label: string): Role {
     const next = play.ball[index + 1];
     const receiving = index > 0 && isThrow(play.ball[index - 1]);
     if (!next) {
+      // A play should not end on a bare catch — callers must add a throw or an
+      // authored job. This wording is a last resort for incomplete data.
       return {
         involved: true,
-        text: receiving ? 'Take the throw — that is the out.' : 'Make the catch. That is the play.',
+        text: receiving
+          ? 'Take the throw — that is the out.'
+          : 'Catch it and look the runners back.',
       };
     }
     return {
       involved: true,
       text: receiving
         ? `Take the throw and go to ${describe(next)}.`
-        : `Field it and throw to ${describe(next)}.`,
+        : play.category === 'Fly balls'
+          ? `Catch it and throw to ${describe(next)}.`
+          : `Field it and throw to ${describe(next)}.`,
     };
   }
 

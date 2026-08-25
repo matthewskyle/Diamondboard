@@ -125,7 +125,8 @@ function makeFlyPlay(config: {
   fieldSpot: Spot;
   runners?: { from: Spot; to?: Spot }[];
   cut?: { label: string; spot: Spot };
-  target?: Spot;
+  /** Required — a caught fly still has a throw or look-in to finish the play. */
+  target: Spot;
   roles?: Record<string, string>;
   extraMoves?: Record<string, Spot>;
 }): PlayDef {
@@ -147,7 +148,7 @@ function makeFlyPlay(config: {
       HOME,
       { fielder: config.fielder },
       ...(config.cut ? [{ fielder: config.cut.label }] : []),
-      ...(config.target ? [config.target] : []),
+      config.target,
     ],
   };
 }
@@ -157,7 +158,7 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
     makeRelayPlay({
       id: `${meta.prefix}-single-home`,
       name: `Single to ${meta.zone} — throw home`,
-      situation: `Runner on second. Base hit to ${meta.zone}.`,
+      situation: `Runner on second. Base hit to ${meta.zone} (ball on the ground).`,
       teaches: 'Get it to the plate on a line through the cut man.',
       fielder: meta.label,
       fieldSpot: meta.deep,
@@ -173,13 +174,14 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
     }),
     makeRelayPlay({
       id: `${meta.prefix}-single-third`,
-      name: `Single to ${meta.zone} — throw to third`,
-      situation: `Runner on first. Base hit to ${meta.zone}; he tries for third.`,
-      teaches: 'Hit the relay early and keep the runner from taking the extra base.',
+      name: `Single to ${meta.zone} — hold first-to-third`,
+      situation: `Runner on first. Base hit to ${meta.zone}; the runner takes second and is waved toward third.`,
+      teaches: 'Throw through the cutoff to third. A good throw keeps him at second — he does not get a free pass to third.',
       fielder: meta.label,
       fieldSpot: meta.deep,
       batterTo: FIRST,
-      runners: [{ from: FIRST, to: THIRD }],
+      // Successful defense: runner is held at second, not gifted third.
+      runners: [{ from: FIRST, to: SECOND }],
       cutoffs: [meta.cutThird],
       target: THIRD,
       extraMoves: { [meta.support.label]: meta.support.spot },
@@ -199,11 +201,11 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
     makeRelayPlay({
       id: `${meta.prefix}-batter-second`,
       name: `${meta.zone} hit — keep the batter at first`,
-      situation: `Ball drops in ${meta.zone}. Batter thinks double out of the box.`,
-      teaches: 'Come up throwing to second and make him stop there.',
+      situation: `Base hit to ${meta.zone}. Batter rounds first looking for a double.`,
+      teaches: 'Come up throwing to second and make him put on the brakes at first.',
       fielder: meta.label,
       fieldSpot: meta.shallow,
-      batterTo: SECOND,
+      batterTo: FIRST,
       target: SECOND,
       extraMoves: { [meta.relaySecond.label]: SECOND },
     }),
@@ -223,12 +225,12 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
     makeRelayPlay({
       id: `${meta.prefix}-gap-third`,
       name: `${meta.zone} gap — relay to third`,
-      situation: `Runner on first. Ball splits the ${meta.zone} gap and he is sent hard.`,
-      teaches: 'Relay to third with pace and make the lead runner stop or slide.',
+      situation: `Runner on first. Ball splits the ${meta.zone} gap; the lead runner takes second and tries for third.`,
+      teaches: 'Relay to third with pace. The lead runner has to earn third — he is not gifted the base.',
       fielder: meta.label,
       fieldSpot: meta.gap,
       batterTo: SECOND,
-      runners: [{ from: FIRST, to: THIRD }],
+      runners: [{ from: FIRST, to: SECOND }],
       cutoffs: [meta.relaySecond],
       target: THIRD,
       roles: { [meta.backupGap.label]: 'Trail the relay and keep the ball in front.' },
@@ -278,7 +280,7 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
     makeRelayPlay({
       id: `${meta.prefix}-charge-third`,
       name: `${meta.zone} flare — freeze the runner at third`,
-      situation: `Runner on second. Soft liner into shallow ${meta.zone}.`,
+      situation: `Runner on second. Soft liner into shallow ${meta.zone} that drops for a hit.`,
       teaches: 'Charge it hard and throw through the cutoff to keep the runner at third.',
       fielder: meta.label,
       fieldSpot: meta.shallow,
@@ -307,12 +309,12 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
     makeRelayPlay({
       id: `${meta.prefix}-corner-third`,
       name: `${meta.zone} corner ball — stop the lead runner at third`,
-      situation: `Runner on first. Ball runs into the ${meta.zone} corner.`,
-      teaches: 'Relay to third fast enough that the runner has to shut it down there.',
+      situation: `Runner on first. Ball runs into the ${meta.zone} corner; he takes second and looks at third.`,
+      teaches: 'Relay to third fast enough that the lead runner has to shut it down at second.',
       fielder: meta.label,
       fieldSpot: meta.corner,
       batterTo: SECOND,
-      runners: [{ from: FIRST, to: THIRD }],
+      runners: [{ from: FIRST, to: SECOND }],
       cutoffs: [meta.relaySecond],
       target: THIRD,
       extraMoves: { [meta.support.label]: meta.support.spot },
@@ -321,11 +323,15 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       id: `${meta.prefix}-shallow-hold`,
       name: `Shallow ${meta.zone} fly — hold the runner`,
       situation: `Runner on third, less than two out. Shallow fly to ${meta.zone}.`,
-      teaches: 'Catch it moving forward and come up ready to throw so the runner cannot tag.',
+      teaches: 'Catch it moving forward and come up throwing so the runner cannot tag.',
       fielder: meta.label,
       fieldSpot: meta.shallow,
       runners: [{ from: THIRD }],
       target: HOME,
+      roles: {
+        [meta.label]: 'Catch it moving in and throw home to keep the runner at third.',
+        C: 'Be ready at the plate in case he tags anyway.',
+      },
     }),
     makeFlyPlay({
       id: `${meta.prefix}-deep-tag-home`,
@@ -338,6 +344,7 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       cut: meta.cutHome,
       target: HOME,
       roles: {
+        [meta.label]: 'Catch it deep and throw through the cut to the plate.',
         C: 'Set your feet at the plate and be ready for the tag play.',
         P: 'Back up the plate in case the throw carries through.',
       },
@@ -347,12 +354,15 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       id: `${meta.prefix}-tag-third`,
       name: `Deep ${meta.zone} fly — tag to third`,
       situation: `Runner on second. Catchable fly to ${meta.zone}.`,
-      teaches: 'Make the catch and get the ball back to third before the runner steals ninety feet.',
+      teaches: 'Make the catch and get the ball to third before the runner steals ninety feet on the tag.',
       fielder: meta.label,
       fieldSpot: meta.deep,
       runners: [{ from: SECOND, to: THIRD }],
       cut: meta.cutThird,
       target: THIRD,
+      roles: {
+        [meta.label]: 'Catch it and throw to third through the cutoff.',
+      },
       extraMoves: { [meta.support.label]: meta.support.spot },
     }),
     makeFlyPlay({
@@ -364,43 +374,70 @@ function makeOutfieldSeries(meta: OutfieldMeta): PlayDef[] {
       fieldSpot: meta.shallow,
       runners: [{ from: FIRST, to: FIRST }],
       target: FIRST,
+      roles: {
+        [meta.label]: 'Catch the liner and throw to first to double off the runner.',
+        '1B': 'Get to the bag and take the throw for the double play.',
+      },
+      extraMoves: { '1B': FIRST },
     }),
     makeFlyPlay({
       id: `${meta.prefix}-foul-line`,
-      name: `${meta.zone} foul-line catch`,
-      situation: `High pop drifting toward the ${meta.zone} line.`,
-      teaches: 'Stay outside the ball and call it early so nobody else drifts under you.',
+      name: `${meta.zone} foul-line catch — throw to first`,
+      situation: `Runner on first. High pop drifting toward the ${meta.zone} line.`,
+      teaches: 'Catch it under control near the line, then throw to first if the runner has drifted off.',
       fielder: meta.label,
       fieldSpot: meta.line,
+      runners: [{ from: FIRST, to: FIRST }],
+      target: FIRST,
+      roles: {
+        [meta.label]: 'Catch it near the line and throw to first to double off the runner.',
+        '1B': 'Cover first and be ready for the throw behind the runner.',
+      },
+      extraMoves: { '1B': FIRST },
     }),
     makeFlyPlay({
       id: `${meta.prefix}-gap-priority`,
-      name: `${meta.zone} gap fly — take charge`,
-      situation: `Fly ball splitting the ${meta.zone} side of the outfield.`,
-      teaches: 'The outfielder with the better line calls it and the others peel off to back up.',
+      name: `${meta.zone} gap fly — catch and throw to second`,
+      situation: `Runner on first. Fly ball splitting the ${meta.zone} side of the outfield.`,
+      teaches: 'Call it, catch it, and throw to second before the runner can get back.',
       fielder: meta.label,
       fieldSpot: meta.gap,
-      roles: { [meta.backupGap.label]: 'Peel off and back up the catch in the gap.' },
-      extraMoves: { [meta.backupGap.label]: meta.backupGap.spot },
+      runners: [{ from: FIRST, to: FIRST }],
+      target: SECOND,
+      roles: {
+        [meta.label]: 'Call it, catch it, and throw to second to double off the runner.',
+        [meta.backupGap.label]: 'Peel off and back up the catch in the gap.',
+        SS: 'Cover second and take the throw behind the runner.',
+      },
+      extraMoves: { [meta.backupGap.label]: meta.backupGap.spot, SS: SECOND },
     }),
     makeFlyPlay({
       id: `${meta.prefix}-do-or-die`,
       name: `${meta.zone} do-or-die catch — throw home`,
-      situation: `Runner on third. Ball hangs in front of the ${meta.zone} outfielder.`,
-      teaches: 'Charge through the ball so you are already moving toward the plate on the throw.',
+      situation: `Runner on third. Soft fly hangs in front of the ${meta.zone} outfielder.`,
+      teaches: 'Charge through the catch so you are already moving toward the plate on the throw.',
       fielder: meta.label,
       fieldSpot: meta.shallow,
       runners: [{ from: THIRD, to: HOME }],
       target: HOME,
-      roles: { C: 'Own the plate and be ready to tag the runner coming from third.' },
+      roles: {
+        [meta.label]: 'Charge the catch and throw home without resetting your feet.',
+        C: 'Own the plate and be ready to tag the runner coming from third.',
+      },
     }),
     makeFlyPlay({
       id: `${meta.prefix}-blooper`,
-      name: `${meta.zone} blooper — catch on the run`,
-      situation: `Soft blooper falls between the infield and ${meta.zone}.`,
-      teaches: 'Break in hard, keep the glove low, and take the easy out before it drops.',
+      name: `${meta.zone} blooper — catch and throw home`,
+      situation: `Runner on third, less than two out. Soft blooper between the infield and ${meta.zone}.`,
+      teaches: 'Break in hard, catch it, and come up throwing home so he cannot tag.',
       fielder: meta.label,
       fieldSpot: meta.shallow,
+      runners: [{ from: THIRD }],
+      target: HOME,
+      roles: {
+        [meta.label]: 'Catch the blooper on the run and throw home to hold the runner.',
+        C: 'Be ready at the plate if he tries to tag anyway.',
+      },
     }),
   ];
 }
@@ -544,13 +581,17 @@ const MORE_CATCHER_AND_PITCHER_PLAYS: readonly PlayDef[] = [
   },
   {
     id: 'catcher-pop-fence',
-    name: 'Pop-up at the backstop',
-    situation: 'Foul ball climbs high and drifts to the fence behind home.',
+    name: 'Pop-up at the backstop — throw to first',
+    situation: 'Runner on first. Foul ball climbs high and drifts to the fence behind home.',
     category: 'Fly balls',
-    teaches: 'Turn, run, find it again, and catch it before you hit the fence.',
+    teaches: 'Turn, find it, catch it, then look the runner back to first before you celebrate.',
+    roles: {
+      C: 'Catch it at the fence, then throw to first if the runner has drifted off.',
+    },
     batterTo: BATTER_OUT,
-    moves: { C: SPOTS.plateFence },
-    ball: [HOME, { fielder: 'C' }],
+    runners: [{ from: FIRST, to: FIRST }],
+    moves: { C: SPOTS.plateFence, '1B': FIRST },
+    ball: [HOME, { fielder: 'C' }, FIRST],
   },
   {
     id: 'catcher-dribbler-home',
@@ -748,12 +789,16 @@ const MORE_INFIELD_AND_RUNNER_PLAYS: readonly PlayDef[] = [
     situation: 'Runners on first and third move after the catcher relaxes.',
     category: 'Runners moving',
     teaches: 'Stop the run first; the back runner only matters if the plate stays covered.',
+    roles: {
+      C: 'Step toward third, look the runner back, then throw to the pitcher covering.',
+      P: 'Cover the plate so the run cannot walk in behind the throw.',
+    },
     runners: [
       { from: FIRST, to: SECOND },
-      { from: THIRD, to: HOME },
+      { from: THIRD },
     ],
     moves: { SS: SECOND, P: HOME },
-    ball: [HOME, MOUND, HOME],
+    ball: [HOME, MOUND],
   },
   {
     id: 'snap-throw-third',

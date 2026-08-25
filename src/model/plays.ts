@@ -322,11 +322,11 @@ export const PLAYS: readonly PlayDef[] = [
   {
     id: 'cut-third-right',
     name: 'Single to right — throw to third',
-    situation: 'Runner on first. Base hit to right, runner tries for third.',
+    situation: 'Runner on first. Base hit to right; the runner takes second and looks for third.',
     category: 'Cutoffs and relays',
-    teaches: 'Shortstop lines up the cut to third. Third baseman stays on the bag.',
+    teaches: 'Shortstop lines up the cut to third. A firm throw keeps the runner at second.',
     batterTo: { base: 'first' },
-    runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
+    runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { RF: HIT.singleRight, SS: { at: [175, 6] }, '3B': { base: 'third' } },
     ball: [{ base: 'home' }, { fielder: 'RF' }, { fielder: 'SS' }, { base: 'third' }],
   },
@@ -387,16 +387,19 @@ export const PLAYS: readonly PlayDef[] = [
   },
   {
     id: 'pop-up-priority',
-    name: 'Pop-up priority',
-    situation: 'Pop fly between the shortstop and the third baseman.',
+    name: 'Pop-up priority — double off first',
+    situation: 'Runner on first. Pop fly between the shortstop and the third baseman.',
     category: 'Fly balls',
-    teaches: 'The player moving forward has it. Shortstop calls off third — call it loud, three times.',
+    teaches: 'Shortstop calls it, catches it, and throws to first before the runner can get back.',
     roles: {
       '3B': 'Give way — the shortstop is coming on and has the better angle.',
+      SS: 'Call it loud, catch it, and throw to first to double off the runner.',
+      '1B': 'Get to the bag and be ready for the throw behind the runner.',
     },
     batterTo: { at: [45, 45] },
-    moves: { SS: HIT.popUpThirdSide, '3B': { at: [95, -40] } },
-    ball: [{ base: 'home' }, { fielder: 'SS' }],
+    runners: [{ from: { base: 'first' }, to: { base: 'first' } }],
+    moves: { SS: HIT.popUpThirdSide, '3B': { at: [95, -40] }, '1B': { base: 'first' } },
+    ball: [{ base: 'home' }, { fielder: 'SS' }, { base: 'first' }],
   },
 
   // --- Runners moving -----------------------------------------------------
@@ -429,12 +432,16 @@ export const PLAYS: readonly PlayDef[] = [
     situation: 'Runners on the corners. The runner at first takes off.',
     category: 'Runners moving',
     teaches: 'Check the runner at third before you throw. The trail runner is bait.',
+    roles: {
+      C: 'Check the runner at third first. Only throw through if he stays put.',
+    },
     runners: [
       { from: { base: 'first' }, to: { base: 'second' } },
-      { from: { base: 'third' }, to: { base: 'home' } },
+      // Correct defense: the run stays at third while second is given up.
+      { from: { base: 'third' } },
     ],
-    moves: { SS: { base: 'second' } },
-    ball: [{ base: 'mound' }, { base: 'home' }, { base: 'second' }],
+    moves: { SS: { base: 'second' }, '3B': { base: 'third' } },
+    ball: [{ base: 'mound' }, { base: 'home' }, { base: 'mound' }],
   },
   {
     id: 'rundown',
@@ -467,7 +474,7 @@ export const PLAYS: readonly PlayDef[] = [
   {
     id: 'pitcher-backs-up',
     name: 'Pitcher backs up third',
-    situation: 'Runner on first, base hit to left field.',
+    situation: 'Runner on first, base hit to left field; the runner takes second and looks for third.',
     category: 'Pitcher and catcher',
     teaches: 'The pitcher has a job on every ball in play: get behind the base the throw is going to.',
     roles: {
@@ -475,7 +482,7 @@ export const PLAYS: readonly PlayDef[] = [
       'SS': 'Line up the cut on the throw to third.',
     },
     batterTo: { base: 'first' },
-    runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
+    runners: [{ from: { base: 'first' }, to: { base: 'second' } }],
     moves: { LF: HIT.singleLeft, '3B': { base: 'third' }, SS: { at: [170, -24] }, P: { at: [150, -48] } },
     ball: [{ base: 'home' }, { fielder: 'LF' }, { base: 'third' }],
   },
@@ -521,13 +528,17 @@ export const PLAYS: readonly PlayDef[] = [
   },
   {
     id: 'pop-up-catcher',
-    name: 'Pop-up to the catcher',
-    situation: 'Ball popped straight up behind the plate.',
+    name: 'Pop-up to the catcher — throw to first',
+    situation: 'Runner on first. Ball popped straight up behind the plate.',
     category: 'Routine outs',
-    teaches: 'Mask off, find it, then throw the mask away. It will drift back toward the infield.',
+    teaches: 'Mask off, find it, catch it, then look the runner back to first before anything else.',
+    roles: {
+      C: 'Catch it, then throw to first if the runner has strayed off the bag.',
+    },
     batterTo: { at: [45, 45] },
-    moves: { C: HIT.popUpBehindPlate },
-    ball: [{ base: 'home' }, { fielder: 'C' }],
+    runners: [{ from: { base: 'first' }, to: { base: 'first' } }],
+    moves: { C: HIT.popUpBehindPlate, '1B': { base: 'first' } },
+    ball: [{ base: 'home' }, { fielder: 'C' }, { base: 'first' }],
   },
 
   {
@@ -633,13 +644,14 @@ export const PLAYS: readonly PlayDef[] = [
   {
     id: 'relay-right-center',
     name: 'Right-centre gap — relay to third',
-    situation: 'Ball splits right and centre with a runner on first.',
+    situation: 'Ball splits right and centre with a runner on first; he takes second and is sent to third.',
     category: 'Cutoffs and relays',
     teaches: 'Ball to the right side, the second baseman is the relay and the shortstop covers.',
     roles: {
       'CF': 'Get to the gap and back up the right fielder.',
     },
     batterTo: { base: 'second' },
+    // Gap double: the lead runner can legitimately make third after touching second.
     runners: [{ from: { base: 'first' }, to: { base: 'third' } }],
     moves: {
       RF: HIT.gapRightCenter,
@@ -693,28 +705,33 @@ export const PLAYS: readonly PlayDef[] = [
   {
     id: 'fly-down-the-line',
     name: 'Fly ball down the right field line',
-    situation: 'High fly drifting toward the line between the first baseman and right fielder.',
+    situation: 'Runner on first. High fly drifting toward the line between first and right.',
     category: 'Fly balls',
-    teaches: 'The outfielder has it — he is moving in and can see the whole play. Call it early.',
+    teaches: 'Right fielder calls it early, catches it coming in, and throws to first to double off the runner.',
     roles: {
-      '1B': 'Peel off — the outfielder has it, coming in.',
+      '1B': 'Peel off the catch, then get back to the bag for the throw behind the runner.',
+      RF: 'Call it, catch it moving in, and throw to first without winding up.',
     },
     batterTo: { at: [45, 45] },
-    moves: { RF: HIT.downTheRightLine, '1B': { at: [156, 42] } },
-    ball: [{ base: 'home' }, { fielder: 'RF' }],
+    runners: [{ from: { base: 'first' }, to: { base: 'first' } }],
+    moves: { RF: HIT.downTheRightLine, '1B': { base: 'first' } },
+    ball: [{ base: 'home' }, { fielder: 'RF' }, { base: 'first' }],
   },
   {
     id: 'outfield-priority',
-    name: 'Gap ball — who calls it',
-    situation: 'Fly ball splitting the left and centre fielders.',
+    name: 'Gap fly — catch and throw to second',
+    situation: 'Runner on first. Fly ball splitting the left and centre fielders.',
     category: 'Fly balls',
-    teaches: 'Centre fielder takes anything he can get to. Left fielder peels off and backs him up.',
+    teaches: 'Centre fielder takes it, left fielder backs him up, and the throw goes to second to double off the runner.',
     roles: {
-      'LF': 'Peel off and back up the centre fielder.',
+      LF: 'Peel off and back up the centre fielder.',
+      CF: 'Call it, catch it, and throw to second before the runner can get back.',
+      SS: 'Cover second and be ready for the throw behind the runner.',
     },
     batterTo: { at: [45, 45] },
-    moves: { CF: { at: [300, -16] }, LF: { at: [268, -26] } },
-    ball: [{ base: 'home' }, { fielder: 'CF' }],
+    runners: [{ from: { base: 'first' }, to: { base: 'first' } }],
+    moves: { CF: { at: [300, -16] }, LF: { at: [268, -26] }, SS: { base: 'second' } },
+    ball: [{ base: 'home' }, { fielder: 'CF' }, { base: 'second' }],
   },
 
   {
