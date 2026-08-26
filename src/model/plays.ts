@@ -66,7 +66,7 @@ export function compilePlay(def: PlayDef): CompiledPlay {
     // The batter leads off the list, because that is the order he exists in.
     // He stands in the box rather than on the plate: a batted ball starts at
     // home too, and a batter hidden under the ball is a batter nobody can see.
-    ...(def.batterTo ? [{ from: BATTERS_BOX, to: def.batterTo }] : []),
+    ...(def.batterTo ? [{ from: BATTERS_BOX, to: def.batterTo, batter: true as const }] : []),
     ...(def.runners ?? []),
   ];
   for (const runner of runners) {
@@ -77,9 +77,20 @@ export function compilePlay(def: PlayDef): CompiledPlay {
     const bag = startOf(runner, diveBack);
     const from = bag ? leadOff(bag) : feetOf(runner.from)!;
     const to = runner.to ? feetOf(runner.to)! : from;
+    const fromBase =
+      diveBack ??
+      ('base' in runner.from
+        ? runner.from.base
+        : 'batter' in runner && runner.batter
+          ? 'home'
+          : undefined);
     // The route decides where he starts and finishes, rather than the other way
     // round, so the two can never disagree about where the bag is.
-    const route = runnerRoute(from, to, runner.to && !diveBack ? basesBetween(from, to) : []);
+    const route = runnerRoute(
+      from,
+      to,
+      runner.to && !diveBack ? basesBetween(from, to, fromBase) : [],
+    );
     const start = route[0];
     const token: Token = { id: nextId('runner'), type: 'runner', x: start.x, y: start.y };
     tokens.push(token);

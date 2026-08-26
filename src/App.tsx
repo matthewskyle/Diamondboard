@@ -15,7 +15,6 @@ import {
   clamp01,
   durationForSpeed,
   dwellShareFor,
-  easeInOutCubic,
   interpolatePositions,
   pointAlongPath,
   type PlaybackSpeed,
@@ -63,11 +62,11 @@ export default function App() {
       const current = clip.current;
       if (!current) return;
       const positions = interpolatePositions(current.from, current.to, t);
-      // Runners follow the base paths. They are people, so they share the
-      // fielders' easing rather than the ball's constant speed.
-      const eased = easeInOutCubic(clamp01(t));
+      // Runners follow the base paths at constant speed so every bag reads —
+      // ease-in-out would sprint through first on the way to second.
+      const along = clamp01(t);
       for (const runner of runnerLegs.current) {
-        positions[runner.id] = pointAlongPath(runner.path, eased);
+        positions[runner.id] = pointAlongPath(runner.path, along);
       }
       const leg = ballLeg.current;
       // The ball follows its route instead of cutting straight across, and at a
