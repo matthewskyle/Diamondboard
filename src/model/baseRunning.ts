@@ -82,9 +82,13 @@ function circuitIndex(feet: Feet): number {
  * The bags a runner has to touch on the way, not counting the one he starts on
  * or the one he finishes at. Scoring counts home as the far end of the circuit,
  * so a man on second passes third; a man diving back passes nothing.
+ *
+ * Pass `fromBase` when the runner's spot is known — a batter in the box is
+ * leaving home even though his feet are closer to the foul line than to the
+ * plate, and a man with a lead is still on the bag he led from.
  */
-export function basesBetween(from: Feet, to: Feet): BaseName[] {
-  const start = circuitIndex(from);
+export function basesBetween(from: Feet, to: Feet, fromBase?: BaseName): BaseName[] {
+  const start = fromBase !== undefined ? circuitIndex(BASE_FEET[fromBase]) : circuitIndex(from);
   // Home is both the start and the end of the circuit: a runner already on the
   // bases who reaches it has gone all the way round, not back to the box.
   const finish = circuitIndex(to);

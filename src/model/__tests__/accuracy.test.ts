@@ -327,6 +327,15 @@ describe('the doctrine is the same on every play', () => {
 });
 
 describe('the runners run like runners', () => {
+  it('sends the batter through first on the way to second', () => {
+    for (const play of PLAYS) {
+      if (!play.batterTo || !('base' in play.batterTo) || play.batterTo.base !== 'second') continue;
+      const from = feetOf(BATTERS_BOX)!;
+      const to = feetOf(play.batterTo)!;
+      expect(basesBetween(from, to, 'home'), play.id).toEqual(['first']);
+    }
+  });
+
   it('stays on the base paths the whole way', () => {
     // Measured in feet, against the straight line from bag to bag, because that
     // is where the path was built and it is the only place the numbers mean
@@ -476,7 +485,15 @@ function runnerRoutesInFeet(
     const start = bag ? leadOff(bag) : feetOf(runner.from)!;
     const from = diveBack && 'base' in runner.from ? leadOff(runner.from.base) : start;
     const to = runner.to ? feetOf(runner.to)! : from;
-    const bags = runner.to && !diveBack ? basesBetween(from, to) : [];
+    const fromBase =
+      diveBack && 'base' in runner.from
+        ? runner.from.base
+        : 'base' in runner.from
+          ? runner.from.base
+          : runner.batter
+            ? 'home'
+            : undefined;
+    const bags = runner.to && !diveBack ? basesBetween(from, to, fromBase) : [];
     out.push({
       name: runner.batter ? 'the batter' : runnerName(runner.from, runner.to),
       route: runnerRouteFeet(from, to, bags),
