@@ -15,6 +15,12 @@ interface Props {
   speed: PlaybackSpeed;
   onSpeedChange: (speed: PlaybackSpeed) => void;
   isPlaying: boolean;
+  /**
+   * True while a play from the library is on the board. A pre-determined play
+   * is watched, not built, so the recording, rewind and speed controls stay out
+   * of the way until the coach starts a play of their own.
+   */
+  libraryPlay: boolean;
   /** Set while studying one position: step through that position's plays. */
   study: { label: string; index: number; total: number } | null;
   onStep: (delta: number) => void;
@@ -47,6 +53,7 @@ export function PlayControls({
   speed,
   onSpeedChange,
   isPlaying,
+  libraryPlay,
   study,
   onStep,
 }: Props) {
@@ -89,15 +96,17 @@ export function PlayControls({
         </button>
       </div>
       <div className="pill-group">
-        <button
-          type="button"
-          className={recording ? 'pill pill-recording' : 'pill'}
-          onClick={recording ? onStop : onRecord}
-          disabled={isPlaying}
-          aria-label={RECORD_HINT[recordState]}
-        >
-          {recording ? '■' : '●'} {RECORD_LABEL[recordState]}
-        </button>
+        {!libraryPlay && (
+          <button
+            type="button"
+            className={recording ? 'pill pill-recording' : 'pill'}
+            onClick={recording ? onStop : onRecord}
+            disabled={isPlaying}
+            aria-label={RECORD_HINT[recordState]}
+          >
+            {recording ? '■' : '●'} {RECORD_LABEL[recordState]}
+          </button>
+        )}
         <button
           type="button"
           className="pill pill-primary"
@@ -106,24 +115,28 @@ export function PlayControls({
         >
           ▶ Play
         </button>
-        <button
-          type="button"
-          className="pill"
-          onClick={onToStart}
-          disabled={!canRewind || isPlaying}
-          aria-label="Return to the start of the play"
-        >
-          ⏮
-        </button>
-        <button
-          type="button"
-          className="pill pill-speed"
-          onClick={() => onSpeedChange(nextSpeed)}
-          disabled={isPlaying}
-          aria-label={`Playback speed ${speed}x — tap for ${nextSpeed}x`}
-        >
-          {speed}×
-        </button>
+        {!libraryPlay && (
+          <>
+            <button
+              type="button"
+              className="pill"
+              onClick={onToStart}
+              disabled={!canRewind || isPlaying}
+              aria-label="Return to the start of the play"
+            >
+              ⏮
+            </button>
+            <button
+              type="button"
+              className="pill pill-speed"
+              onClick={() => onSpeedChange(nextSpeed)}
+              disabled={isPlaying}
+              aria-label={`Playback speed ${speed}x — tap for ${nextSpeed}x`}
+            >
+              {speed}×
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

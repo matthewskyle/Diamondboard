@@ -3,7 +3,6 @@ import { FieldStage } from './components/FieldStage';
 import { PlayControls, type RecordState } from './components/PlayControls';
 import { PlayLibrary } from './components/PlayLibrary';
 import { SetupChips } from './components/SetupChips';
-import { PlayRoleList } from './components/PlayRoleList';
 import { Toolbar } from './components/Toolbar';
 import {
   diagramReducer,
@@ -21,7 +20,7 @@ import {
   type PlaybackSpeed,
 } from './model/tween';
 import { compilePlay, PLAYS, type PlayDef } from './model/plays';
-import { playsForPosition, roleFor } from './model/roles';
+import { playsForPosition } from './model/roles';
 import type { PositionMap, Tool } from './model/types';
 import {
   BASE_SLOTS,
@@ -88,7 +87,13 @@ export default function App() {
   });
 
   const handlePlay = useCallback(() => {
-    const playback = resolvePlayback(state.tokens, start, end);
+    // A library play is watched rather than built, and has no rewind button of
+    // its own, so Play always runs the stored play from its start — however the
+    // board was left by the last time through.
+    const playback =
+      loadedPlay && start && end
+        ? { from: start, to: end, captureEnd: false }
+        : resolvePlayback(state.tokens, start, end);
     if (!playback) return;
     if (playback.captureEnd) dispatch({ type: 'captureEnd' });
 
@@ -110,7 +115,7 @@ export default function App() {
           .map(([id, path]) => ({ id, path }));
 
     play();
-  }, [state.tokens, start, end, ballRoute, runnerRoutes, play]);
+  }, [state.tokens, start, end, ballRoute, runnerRoutes, loadedPlay, play]);
 
   const handleToStart = useCallback(() => {
     if (start) dispatch({ type: 'setPositions', positions: start });
@@ -219,10 +224,7 @@ export default function App() {
           {loadedPlay && (
             <div className="play-caption">
               <strong>{loadedPlay.name}</strong>
-              <span>
-                {position ? roleFor(loadedPlay, position).text : loadedPlay.teaches}
-              </span>
-              <PlayRoleList play={loadedPlay} highlight={position} />
+              <span>{loadedPlay.teaches}</span>
             </div>
           )}
           <PlayControls
@@ -238,6 +240,7 @@ export default function App() {
             speed={speed}
             onSpeedChange={setSpeed}
             isPlaying={isPlaying}
+            libraryPlay={loadedPlay !== null}
             study={
               position && studyIndex >= 0
                 ? { label: position, index: studyIndex, total: studyPlays.length }
