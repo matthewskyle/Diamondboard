@@ -11,6 +11,9 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # overwrite: true on the artifact upload deletes the previous artifact first,
+  # which needs write access to the Actions API.
+  actions: write
 
 concurrency:
   group: pages
@@ -29,9 +32,25 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      # Inlined from actions/upload-pages-artifact@v3 so the upload can pass
+      # overwrite: true. Re-running the build job leaves the earlier upload in
+      # place, and deploy-pages fails when it finds two "github-pages"
+      # artifacts in one run.
+      - name: Archive dist for Pages
+        run: |
+          tar --dereference --hard-dereference \
+            --directory dist \
+            -cf "$RUNNER_TEMP/artifact.tar" \
+            --exclude=.git \
+            --exclude=.github \
+            .
+      - uses: actions/upload-artifact@v4
         with:
-          path: dist
+          name: github-pages
+          path: ${{ runner.temp }}/artifact.tar
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
 
   deploy:
     needs: build
