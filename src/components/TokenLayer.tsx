@@ -8,9 +8,11 @@ interface Props {
   overrides?: PositionMap | null;
   /** The position being studied, ringed so a player can follow themselves. */
   highlight?: string | null;
+  /** Magnification for the tokens alone, so a phone still shows a real player. */
+  scale?: number;
 }
 
-export function TokenLayer({ tokens, overrides, highlight }: Props) {
+export function TokenLayer({ tokens, overrides, highlight, scale = 1 }: Props) {
   return (
     <g className="tokens" pointerEvents="none">
       {tokens.map((token) => {
@@ -20,6 +22,7 @@ export function TokenLayer({ tokens, overrides, highlight }: Props) {
             key={token.id}
             token={token}
             at={p}
+            scale={scale}
             highlighted={highlight != null && token.label === highlight}
           />
         );
@@ -31,13 +34,18 @@ export function TokenLayer({ tokens, overrides, highlight }: Props) {
 function TokenShape({
   token,
   at,
+  scale,
   highlighted,
 }: {
   token: Token;
   at: Point;
+  scale: number;
   highlighted: boolean;
 }) {
-  const transform = `translate(${at.x} ${at.y})`;
+  // Scaling the whole group takes the label, the seams and the highlight ring
+  // with it, so a magnified token is the same token, only bigger.
+  const transform =
+    scale === 1 ? `translate(${at.x} ${at.y})` : `translate(${at.x} ${at.y}) scale(${scale})`;
 
   if (token.type === 'ball') {
     return (
