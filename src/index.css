@@ -32,12 +32,19 @@ body {
   background: var(--grass);
   color: var(--ink);
   overscroll-behavior: none;
+  /* Pinned rather than merely full height: on iOS a document that can move at
+     all will rubber-band under a drag, and the board is not a page to scroll. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
 }
 
 .app {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
+  /* The body is pinned to the viewport, so filling it is the whole story — and
+     it avoids a dvh that disagrees with the pinned height as the URL bar moves. */
+  height: 100%;
   /* Installed on a home screen the status bar overlays the page. */
   padding-top: env(safe-area-inset-top);
 }
@@ -47,6 +54,9 @@ body {
   flex: 1;
   min-height: 0;
   display: flex;
+  /* Safari honours touch-action on HTML elements but not on the SVG inside, so
+     the field's own gesture claim has to be made by its container. */
+  touch-action: none;
 }
 
 .field-svg {

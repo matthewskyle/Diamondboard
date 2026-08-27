@@ -77,6 +77,21 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     return () => observer.disconnect();
   }, []);
 
+  /**
+   * touch-action is a hint, and Safari has never applied it to an SVG element:
+   * on an iPhone the page pans and rubber-bands under a finger that is trying to
+   * move a fielder. The board scrolls at no size, so refuse the browser's
+   * gesture outright. Registered by hand because it has to be non-passive —
+   * a passive listener is not allowed to preventDefault.
+   */
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const refuse = (event: TouchEvent) => event.preventDefault();
+    svg.addEventListener('touchmove', refuse, { passive: false });
+    return () => svg.removeEventListener('touchmove', refuse);
+  }, []);
+
   const latestTokens = useRef(state.tokens);
   useLayoutEffect(() => {
     latestTokens.current = state.tokens;
