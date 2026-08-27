@@ -16,7 +16,15 @@ import {
   TOKEN_RADIUS,
   viewHeightFor,
   MIN_VIEW_HEIGHT,
+  hitRadiusForScale,
+  tokenScaleForScale,
+  MIN_TOKEN_DIAMETER_PX,
+  MIN_TOUCH_TARGET_PX,
+  TOKEN_HIT_RADIUS,
 } from '../fieldGeometry';
+
+/** The board is drawn to the container's width, so this is its scale. */
+const scaleFor = (cssWidth: number) => cssWidth / VIEW_BOX.width;
 
 /** How far up the field a point sits, undoing the squash: real radial units. */
 const depth = (y: number) => (HOME.y - y) / VERTICAL_SQUASH;
@@ -198,5 +206,47 @@ describe('clampToField with a cropped board', () => {
     });
     // The full board still allows the open area below home plate.
     expect(clampToField({ x: 500, y: 900 }).y).toBe(900);
+  });
+});
+
+describe('token magnification', () => {
+  it('leaves the tokens alone on a tablet, where they are already big enough', () => {
+    // An iPad in portrait draws the board around 820 px across.
+    expect(tokenScaleForScale(scaleFor(820))).toBe(1);
+  });
+
+  it('grows a fielder to a readable size on a phone', () => {
+    const scale = scaleFor(390);
+    const drawnPx = 2 * TOKEN_RADIUS * tokenScaleForScale(scale) * scale;
+    expect(drawnPx).toBeCloseTo(MIN_TOKEN_DIAMETER_PX, 5);
+    // Unmagnified, that same fielder would have been a 17 px dot.
+    expect(2 * TOKEN_RADIUS * scale).toBeLessThan(MIN_TOKEN_DIAMETER_PX);
+  });
+
+  it('never shrinks a token, whatever the container reports', () => {
+    for (const scale of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 10]) {
+      expect(tokenScaleForScale(scale)).toBeGreaterThanOrEqual(1);
+    }
+  });
+});
+
+describe('hitRadiusForScale', () => {
+  it('holds the minimum touch target on a phone', () => {
+    const scale = scaleFor(390);
+    expect(2 * hitRadiusForScale(scale) * scale).toBeGreaterThanOrEqual(MIN_TOUCH_TARGET_PX);
+  });
+
+  it('never lets the token outgrow its own hit area', () => {
+    for (const width of [320, 390, 430, 600, 820, 1200]) {
+      const scale = scaleFor(width);
+      expect(hitRadiusForScale(scale)).toBeGreaterThanOrEqual(
+        TOKEN_RADIUS * tokenScaleForScale(scale),
+      );
+    }
+  });
+
+  it('falls back to the fixed radius for a degenerate scale', () => {
+    expect(hitRadiusForScale(0)).toBe(TOKEN_HIT_RADIUS);
+    expect(hitRadiusForScale(Number.NaN)).toBe(TOKEN_HIT_RADIUS);
   });
 });

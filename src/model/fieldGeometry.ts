@@ -222,13 +222,34 @@ export const TOKEN_HIT_RADIUS = 38;
 export const MIN_TOUCH_TARGET_PX = 44;
 
 /**
+ * The smallest a fielder may be drawn, across, in CSS pixels. A token you
+ * cannot read is a token you cannot aim at: on a phone the field is drawn at
+ * roughly a third of the iPad's scale, which leaves a fielder 16 px across with
+ * a 7 px label — visible, but not something a finger can find under itself.
+ */
+export const MIN_TOKEN_DIAMETER_PX = 34;
+
+/**
+ * How much to magnify the tokens at the scale the board is currently drawn at.
+ * The field keeps its proportions — the diamond is the diamond — while the
+ * players on it grow to stay legible and grabbable on a small screen. 1 on a
+ * tablet, where they are already big enough.
+ */
+export function tokenScaleForScale(pxPerUnit: number): number {
+  if (!Number.isFinite(pxPerUnit) || pxPerUnit <= 0) return 1;
+  return Math.max(1, MIN_TOKEN_DIAMETER_PX / (2 * TOKEN_RADIUS * pxPerUnit));
+}
+
+/**
  * On a phone the field renders at roughly half the iPad's scale, so a fixed
  * radius would shrink below a fingertip. Grow the hit area to hold the 44 px
- * floor at whatever scale the SVG is currently drawn.
+ * floor at whatever scale the SVG is currently drawn — and to stay outside the
+ * token once magnification has grown it.
  */
 export function hitRadiusForScale(pxPerUnit: number): number {
   if (!Number.isFinite(pxPerUnit) || pxPerUnit <= 0) return TOKEN_HIT_RADIUS;
-  return Math.max(TOKEN_HIT_RADIUS, MIN_TOUCH_TARGET_PX / 2 / pxPerUnit);
+  const drawn = TOKEN_RADIUS * tokenScaleForScale(pxPerUnit);
+  return Math.max(TOKEN_HIT_RADIUS, MIN_TOUCH_TARGET_PX / 2 / pxPerUnit, drawn);
 }
 
 /** Keep dragged tokens on the board, whatever height it is currently drawn at. */

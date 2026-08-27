@@ -3,6 +3,7 @@ import {
   clampToField,
   hitRadiusForScale,
   TOKEN_RADIUS,
+  tokenScaleForScale,
   VIEW_BOX,
   viewBoxAttr,
   viewHeightFor,
@@ -55,6 +56,9 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
   const [draft, setDraft] = useState<{ pointerId: number; points: Point[] } | null>(null);
   const [aim, setAim] = useState<AimState | null>(null);
   const [viewHeight, setViewHeight] = useState<number>(VIEW_BOX.height);
+  // CSS pixels per viewBox unit, remembered from the last resize so the tokens
+  // can be drawn at a size a finger can actually find.
+  const [pxPerUnit, setPxPerUnit] = useState<number>(1);
 
   // Track the container's shape so a rotation crops the board rather than
   // shrinking the field. Changing the viewBox doesn't resize the element, so
@@ -64,7 +68,10 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     if (!svg) return;
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) setViewHeight(viewHeightFor(width / height));
+      if (width > 0 && height > 0) {
+        setViewHeight(viewHeightFor(width / height));
+        setPxPerUnit(width / VIEW_BOX.width);
+      }
     });
     observer.observe(svg);
     return () => observer.disconnect();
@@ -101,6 +108,21 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     return ctm ? ctm.a : 1;
   }, []);
 
+  /**
+   * Capture keeps a drag alive when the finger outruns the token, but it is not
+   * what makes the drag work: Safari has historically thrown here for touch
+   * pointers on an SVG element, and a throw at this point would swallow the
+   * whole gesture. Losing capture costs a drag that leaves the board; losing the
+   * drag costs everything.
+   */
+  const capture = (event: React.PointerEvent<SVGSVGElement>) => {
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Ignored: the pointer handlers below work without it.
+    }
+  };
+
   const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     // A running animation owns the tokens; don't let a stray touch fight it.
     if (animating || event.button > 0) return;
@@ -110,7 +132,7 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
       case 'select': {
         const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
         if (!token) return;
-        event.currentTarget.setPointerCapture(event.pointerId);
+        capture(event);
         setDrag({
           pointerId: event.pointerId,
           tokenId: token.id,
@@ -129,7 +151,7 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
       case 'move': {
         const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
         if (!token) return;
-        event.currentTarget.setPointerCapture(event.pointerId);
+        capture(event);
         setAim({
           pointerId: event.pointerId,
           tokenId: token.id,
@@ -166,7 +188,7 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
         return;
       }
       case 'pen':
-        event.currentTarget.setPointerCapture(event.pointerId);
+        capture(event);
         setDraft({ pointerId: event.pointerId, points: [p] });
         return;
     }
@@ -259,7 +281,12 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
         aiming={aim}
       />
       <BallRouteLayer route={state.ballRoute} />
-      <TokenLayer tokens={state.tokens} overrides={overrides} highlight={highlight} />
+      <TokenLayer
+        tokens={state.tokens}
+        overrides={overrides}
+        highlight={highlight}
+        scale={tokenScaleForScale(pxPerUnit)}
+      />
     </svg>
   );
 }
