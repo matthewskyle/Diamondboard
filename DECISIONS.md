@@ -67,50 +67,29 @@ the white lines do all the shape work — plus the near-black button fill
   and that relocation undoes like any other move.
 - **A drag is one undo step.** Positions update live during the drag but commit
   once on release, so undo steps back a whole move rather than a frame of one.
-- **Captures aren't undoable.** Record and Stop take a snapshot; neither they
-  nor the animation transport (Play, To start) push undo entries. Undo is for
-  editing the diagram, not for scrubbing the animation.
-- **Record, Stop, Play.** Record snapshots the start. While recording, the same
-  button becomes Stop: it stores the current board as the end and rewinds
-  everyone to the start, so Play is ready by default. Stopping with nothing
-  moved cancels the recording. Play can still close an open recording the old
-  way — whatever moved since Record *is* the play — and if nothing has moved
-  (just stopped or rewound) the stored play replays rather than collapsing into
-  a play where nothing happens. The record button carries the state: Record,
-  then Stop, then Re-record.
-- **The ball travels its route, not a straight line.** Everything else tweens
-  from where it started to where it ended; a ball that did that could never show
-  a relay. Instead the coach taps out where the ball goes — each tap snapping to
-  the fielder or base under it — and the ball runs those legs at constant speed,
-  so a long throw takes longer than a short one. The route is a self-contained
-  polyline anchored where it was drawn, so it stays put when the ball moves and
-  doesn't trail backwards during playback. It renders whether or not anyone
-  presses Play, which is how a coach draws it on a whiteboard anyway.
-- **Playback runs at half the old rate by default**, with 0.5×, 1× and 2× on a
-  button that steps through them. Full speed reads as a blur when the point is
-  to see who went where; the board's original pace is still there as 2×.
-- **The ball waits at each stop.** A throw arriving and leaving in the same
-  instant reads as the ball glancing off, not as somebody catching it, so the
-  ball holds at every intermediate stop — 12% of the playback each, capped at
-  45% in total so a long relay stays mostly movement. Fielders keep moving
-  through the pause: the ball is what is being caught.
-- **A library of 150 set plays**, each with a batter. SPEC.md §1 ruled template plays out of Phase 1;
-  that is superseded. Each is written in real feet and bearings — who moves
-  where, and where the ball goes — and compiled into the same arrangement and
-  route the board already animates, so a library play is not a special case at
-  playback. Loading one replaces the board and arrives already recorded, so Play
-  is live immediately; it clears the undo stack, since undoing back into a
-  previous play would leave a half-merged arrangement nobody asked for.
-- **Play always runs the captured start → end.** It snaps to the start on the
-  first frame, so it replays identically no matter where the tokens sit when
-  it's pressed.
-- **Tokens added after a capture stay put** during playback, per the spec.
+- **Switching steps isn't undoable.** Looking at another beat changes nothing
+  about the play. Neither the animation transport nor `setActiveStep` pushes an
+  undo entry — undo is for editing the diagram, not for scrubbing it.
+- **Drawing a play is steps and arrows.** See "Building a play in steps" below;
+  it supersedes the Record / Stop / Re-record flow this file used to describe,
+  and the dedicated ball-route tool with it.
+- **Playback runs at 1.5 s a step by default**, with 0.5×, 1× and 2× on a button
+  that steps through them. Full speed reads as a blur when the point is to see
+  who went where; the board's original pace is still there as 2×.
+- **A library of 150 set plays** was built and is no longer mounted — see "The
+  play library, parked" below. SPEC.md §1 had ruled template plays out of Phase
+  1; that ruling stands again, for a different reason.
+- **Play always runs the whole play from the top**, whichever step is being
+  edited, so it reads the same every time it is pressed.
+- **A token added mid-play stays put** until somebody points it somewhere: a
+  step holds only the tokens that move in it, so arriving late costs nothing.
 - **Runners are unlabeled red dots**, smaller than the fielder tokens, as in the
   reference. Nothing to read means they never compete with the position labels
   for attention.
 - **Undo depth is 50**, oldest dropped first.
-- **New play** (the spec's Reset) restores the nine default fielders and clears
-  runners, the ball, strokes, both captures, and the undo stack.
+- **New** (the spec's Reset) restores the nine default fielders and clears
+  runners, the ball, strokes, the steps, and the undo stack. **Clear play**
+  clears only the arrows, leaving the situation you set up standing.
 
 ## Who does what on a play
 
@@ -208,6 +187,9 @@ corner in any route down to 8 degrees.
 
 ## Learning one position
 
+Parked with the play library — see below. The code and its tests are intact.
+What it did, for when it comes back:
+
 A player asking "what do I do?" wants a different cut of the same data than a
 coach picking a play. Choosing a position filters the library to the plays that
 position has a job in, rings their token so they can follow themselves, and puts
@@ -229,6 +211,56 @@ the whole defense, not just the player with the ball.
 
 The list is grouped by category and the stepper follows that same order, so
 "4 of 28" is the fourth play a coach can actually see.
+
+## Building a play in steps
+
+A play is a list of steps, and a step is a beat: everybody with an arrow in it
+breaks at the same time, and the next step does not start until they have all
+arrived. That is how a play is coached — "on the crack of the bat the shortstop
+breaks and the runner goes; *then* the throw" — so it is how the board stores
+one. `src/model/steps.ts` owns the model; `PlayStep` holds only the tokens that
+move in it, as absolute destinations.
+
+- **Drawing is the whole interaction.** Hold a player and pull: the line out of
+  him is where he goes this step, drawn as it is dragged, and released it snaps
+  to a bag or a teammate. Tapping him without pulling takes the arrow back off.
+  The board opens on that tool, because it is what the board is for.
+- **Nothing is recorded.** Record / Stop / Re-record and the rewind button are
+  gone. Where a token stands *is* the top of the play, arrows are the play, and
+  playback is a pure overlay that never writes to a token — so the board is back
+  at the start the instant a run finishes, ready to run again, with no rewind to
+  press. A 700 ms hold on the last frame keeps the finish from vanishing the
+  moment it arrives.
+- **The board shows the step being edited.** Entering step 3, everybody stands
+  where steps 1 and 2 left them, so an arrow drawn there starts from the right
+  place. Dragging somebody in that view adjusts the arrival an earlier step gave
+  him rather than the top of the play — moving the start instead would slide him
+  out from under his own arrow.
+- **Every step's arrows stay on the board**, the step being drawn into in chalk
+  and the rest faded, each carrying its number. Who breaks together is readable
+  without pressing Play.
+- **Empty steps cost nothing.** Steps share the clock evenly at 1.5 s each, and
+  a step nobody moves in is skipped — it is a step waiting to be drawn, not part
+  of the play. There is always one on the end for the next arrow.
+- **The ball is just a token.** The dedicated route tool is gone: a throw is an
+  arrow on the ball in its own step, and a relay is two steps. The step boundary
+  is the beat where a fielder catches it, which is what the route tool's dwell
+  was imitating.
+
+## The play library, parked
+
+`Plays` and the position-study mode are no longer mounted. A shelf of 150
+finished plays was answering a different question from the one the board now
+asks, and it crowded out the thing a coach actually wants to do: draw *this*
+play, for *this* team, right now.
+
+Nothing is deleted. `plays.ts`, `morePlays.ts`, `defense.ts`, `roles.ts`,
+`baseRunning.ts` and `PlayLibrary.tsx` are intact with their tests — the
+situations in them are the valuable part — and `compilePlay()` still returns a
+start, an end and routes. Nothing imports them from the app, so none of it
+ships. Bringing it back means mounting the component again and teaching
+`compilePlay` to emit `PlayStep[]` instead of one pair of arrangements, which
+is a truer fit for it anyway: a 6-4-3 is three beats, not two.
 
 ## Rotation
 
@@ -283,11 +315,13 @@ building, and it is also what a native App Store build would need first.
 
 ## Deliberately absent
 
-No save/load, no play library, no accounts, no templates, no multi-keyframe
-timeline, no landscape-specific layout — all Phase 1 non-goals. State is
-in memory only; a refresh resets the board.
+No save/load, no accounts, no templates, no landscape-specific layout. State is
+in memory only; a refresh resets the board — which now costs more than it did,
+because a play drawn in steps is real work. Persistence is the next thing worth
+building.
 
-The two-state animation is stored separately from the interpolation:
-`interpolatePositions()` takes two arbitrary arrangements and knows nothing
-about where they came from, so a Phase 2 keyframe list can pick a bracketing
-pair and call it unchanged.
+The set-play library is present in the repo but not mounted; see above.
+
+Interpolation still knows nothing about where its arrangements came from:
+`interpolatePositions()` takes two of them, and `positionsDuring()` picks the
+bracketing pair out of the step list and calls it unchanged.

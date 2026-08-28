@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BASE_DURATION_MS,
-  durationForSpeed,
   dwellShareFor,
   easeInOutCubic,
   interpolatePositions,
@@ -9,6 +7,7 @@ import {
   PLAYBACK_SPEEDS,
   pointAlongPath,
 } from '../tween';
+import { durationForPlay, STEP_DURATION_MS, type PlayStep } from '../steps';
 
 const start = { a: { x: 0, y: 0 }, b: { x: 10, y: 10 } };
 const end = { a: { x: 100, y: 200 }, b: { x: 10, y: 10 } };
@@ -109,22 +108,23 @@ describe('pointAlongPath', () => {
 });
 
 describe('playback speed', () => {
-  it('defaults to half the board original rate, with the original still available', () => {
-    expect(durationForSpeed(1)).toBe(BASE_DURATION_MS);
-    expect(durationForSpeed(2)).toBe(BASE_DURATION_MS / 2);
-    expect(durationForSpeed(2)).toBe(1800); // what the board used to run at
-    expect(durationForSpeed(0.5)).toBe(BASE_DURATION_MS * 2);
+  const play: PlayStep[] = [{ id: 's1', moves: { a: { x: 1, y: 1 } } }];
+
+  it('runs a step at its base pace at 1x', () => {
+    expect(durationForPlay(play, 1)).toBe(STEP_DURATION_MS);
+    expect(durationForPlay(play, 2)).toBe(STEP_DURATION_MS / 2);
+    expect(durationForPlay(play, 0.5)).toBe(STEP_DURATION_MS * 2);
   });
 
   it('offers a slower option than the default', () => {
     expect(PLAYBACK_SPEEDS).toContain(1);
     expect(Math.min(...PLAYBACK_SPEEDS)).toBeLessThan(1);
     for (const speed of PLAYBACK_SPEEDS) {
-      expect(durationForSpeed(speed)).toBeGreaterThan(0);
+      expect(durationForPlay(play, speed)).toBeGreaterThan(0);
     }
     // Slower speed, longer play.
     const sorted = [...PLAYBACK_SPEEDS].sort((a, b) => a - b);
-    const durations = sorted.map(durationForSpeed);
+    const durations = sorted.map((speed) => durationForPlay(play, speed));
     expect(durations).toEqual([...durations].sort((a, b) => b - a));
   });
 });

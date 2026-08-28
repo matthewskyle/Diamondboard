@@ -1,4 +1,5 @@
 import type { Point } from './path';
+import type { PlayStep } from './steps';
 
 export type TokenType = 'fielder' | 'runner' | 'ball';
 
@@ -16,50 +17,40 @@ export interface Stroke {
   points: Point[];
 }
 
-/** Token id -> position. Used for animation start/end capture. */
+/** Token id -> position. Used for arrangements and animation frames. */
 export type PositionMap = Record<string, Point>;
 
-export type Tool = 'select' | 'move' | 'addRunner' | 'addBall' | 'ballRoute' | 'pen' | 'erase';
+export type Tool = 'arrow' | 'select' | 'addRunner' | 'addBall' | 'pen' | 'erase';
 
 export interface DiagramState {
+  /**
+   * The board at the top of the play. Playback never writes here — it runs as
+   * an overlay — so the field returns to this arrangement on its own.
+   */
   tokens: Token[];
   strokes: Stroke[];
   /**
-   * Where the ball goes: a self-contained polyline whose first point is where
-   * the route starts (seeded from the ball) and whose every later point is one
-   * throw or carry. Empty until the coach draws one.
+   * The play, beat by beat. Always at least one step, so there is somewhere to
+   * draw the first arrow.
    */
-  ballRoute: Point[];
-  /**
-   * Runner token id -> the base paths that runner covers. A runner cannot tween
-   * in a straight line: a man scoring from second goes by way of third, not
-   * across the mound. Only library plays carry these; a hand-recorded play is
-   * whatever the coach dragged.
-   */
-  runnerRoutes: Record<string, Point[]>;
-  /**
-   * Captured animation states. Null until the coach captures them.
-   *
-   * A token whose start and end differ has a movement arrow drawn for it, so
-   * recording a play and pointing an arrow at a base are two ways of filling in
-   * the same pair of arrangements.
-   */
-  start: PositionMap | null;
-  end: PositionMap | null;
+  steps: PlayStep[];
+  /** Which step new arrows land in, and which the board is shown entering. */
+  activeStep: number;
   undoStack: UndoEntry[];
 }
 
 export type UndoEntry =
   | { kind: 'move'; id: string; x: number; y: number }
-  | { kind: 'addToken'; token: Token; index: number }
+  | { kind: 'addToken'; token: Token; index: number; steps: PlayStep[] }
   | { kind: 'removeToken'; id: string }
   | { kind: 'addStroke'; stroke: Stroke; index: number }
   | { kind: 'removeStroke'; id: string }
-  | { kind: 'restoreRoute'; route: Point[] }
   | {
       kind: 'restoreDestination';
+      step: number;
       id: string;
       /** The previous arrow tip, or undefined when there was no arrow. */
       to: Point | undefined;
-      route: Point[] | undefined;
-    };
+    }
+  /** Coarse restore for anything that reshapes the step list itself. */
+  | { kind: 'restoreSteps'; steps: PlayStep[]; activeStep: number };

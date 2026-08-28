@@ -111,11 +111,6 @@ body {
   fill: var(--chalk);
 }
 
-/* The ball already has a dashed route; keep its own hop quieter. */
-.fx-move-ball {
-  opacity: 0.5;
-}
-
 .fx-move-head-aiming {
   fill: var(--accent);
 }
@@ -125,28 +120,26 @@ body {
   opacity: 1;
 }
 
-.fx-route {
+/* Steps other than the one being drawn stay on the board, but quietly: the
+   whole play is visible while the current beat is the one in chalk. */
+.fx-move-past {
   fill: none;
   stroke: var(--chalk);
-  stroke-width: 4;
-  stroke-dasharray: 13 9;
+  stroke-width: 3;
   stroke-linecap: round;
+  opacity: 0.32;
 }
 
-.fx-route-stop {
+.fx-step-badge-disc {
   fill: var(--ink);
-  opacity: 0.82;
+  opacity: 0.85;
 }
 
-.fx-route-stop-label {
+.fx-step-badge-text {
   fill: var(--chalk);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   font-family: inherit;
-}
-
-.fx-route-head {
-  fill: var(--chalk);
 }
 
 .token {
@@ -234,13 +227,6 @@ body {
   color: var(--ink);
 }
 
-.pill-recording:disabled {
-  /* Still readable while disabled: it is showing status, not offering an action. */
-  opacity: 1;
-  background: #5b2320;
-  color: #ffd9d5;
-}
-
 .pill-speed {
   font-variant-numeric: tabular-nums;
   min-width: 52px;
@@ -288,10 +274,8 @@ body {
   cursor: default;
 }
 
-/* --- Play caption and library ------------------------------------------ */
+/* --- Play caption, steps and controls ---------------------------------- */
 
-/* Caption and controls share one dock, so the controls wrapping onto a second
-   row on a narrow screen pushes the caption up instead of covering it. */
 .play-dock {
   position: absolute;
   left: 0;
@@ -328,139 +312,64 @@ body {
   max-width: 52ch;
 }
 
-.library-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgb(0 0 0 / 0.45);
-  display: flex;
-  z-index: 10;
-}
-
-.library {
-  display: flex;
-  flex-direction: column;
-  width: min(24rem, 88vw);
-  background: var(--bar);
-  color: var(--ink);
-  box-shadow: 0 0 40px rgb(0 0 0 / 0.4);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.library-head {
+.step-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0.9rem;
-  border-bottom: 1px solid rgb(0 0 0 / 0.1);
-  padding-top: calc(0.75rem + env(safe-area-inset-top));
-}
-
-.library-head h2 {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
-.library-list {
-  flex: 1;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  padding: 0.4rem 0.6rem 1rem;
-}
-
-.library-list h3 {
-  margin: 0.9rem 0 0.35rem;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: #6d746f;
-}
-
-.library-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  width: 100%;
-  min-height: 44px;
-  padding: 0.55rem 0.7rem;
-  margin-bottom: 0.25rem;
-  border: 1.5px solid transparent;
-  border-radius: 10px;
-  background: #fff;
-  color: inherit;
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
-.library-item:hover {
-  background: #f4f6f5;
-}
-
-.library-item[aria-current='true'] {
-  border-color: var(--bar-active);
-}
-
-.library-item-name {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.library-item-situation {
-  font-size: 0.78rem;
-  color: #5c635e;
-}
-
-.position-picker {
-  display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  padding: 0.6rem 0.9rem 0.4rem;
-  border-bottom: 1px solid rgb(0 0 0 / 0.08);
+  padding: 0 calc(0.7rem + env(safe-area-inset-left));
 }
 
-.position-chip {
+.step-bar-title {
+  color: var(--pill-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.5);
+  margin-right: 0.15rem;
+}
+
+.step-chip {
+  position: relative;
   min-width: 44px;
   min-height: 44px;
-  padding: 0 0.55rem;
-  border: 1.5px solid transparent;
+  border: 1.5px solid rgb(255 255 255 / 0.25);
   border-radius: 10px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 0.85rem;
-  font-weight: 600;
+  background: rgb(19 24 38 / 0.82);
+  color: var(--pill-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   touch-action: manipulation;
 }
 
-.position-chip[aria-pressed='true'] {
-  background: var(--ink);
-  color: var(--pill-ink);
-  border-color: var(--ink);
+.step-chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink);
 }
 
-.position-summary {
-  margin: 0;
-  padding: 0.5rem 0.9rem 0;
-  font-size: 0.8rem;
-  color: #5c635e;
-}
-
-.study-stepper {
-  align-items: center;
-  background: var(--pill);
-  border-radius: 12px;
-  padding: 0 0.15rem;
-}
-
-.study-count {
-  padding: 0 0.5rem;
-  color: var(--pill-ink);
-  font-size: 0.8rem;
+/* How many players break on this beat, without having to select it first. */
+.step-chip-count {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 0.6rem;
   font-weight: 600;
-  white-space: nowrap;
+  opacity: 0.75;
+}
+
+.step-chip-add,
+.step-chip-remove {
+  font-size: 1.05rem;
+  border-style: dashed;
+}
+
+.step-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* --- Tool bar ----------------------------------------------------------- */
@@ -478,7 +387,10 @@ body {
 .tool-button {
   display: grid;
   place-items: center;
-  min-width: 52px;
+  /* 52px each where there is room, shrinking to the 44px touch minimum on a
+     narrow phone rather than pushing the last tool off the edge. */
+  flex: 0 1 52px;
+  min-width: 44px;
   min-height: 44px;
   border: 1.5px solid transparent;
   border-radius: 10px;

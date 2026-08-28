@@ -2,9 +2,11 @@
 
 Interactive baseball field for teaching and learning situational baseball.
 
-Drag the nine fielders, runners, and the ball around a stylized field, draw over
-it with a pen, and play a two-state animation to show how a situation develops.
-Built for an iPad in portrait first, then phone, then desktop.
+Draw your own play on a stylized field: hold a player, pull an arrow to where he
+goes, and press Play. A play is built in **steps** — everybody with an arrow in
+a step breaks at the same time, and the next step does not start until they have
+all arrived — so a rundown or a 6-4-3 reads the way it is coached. Built for an
+iPad in portrait first, then phone, then desktop.
 
 ## Running it
 
@@ -36,37 +38,36 @@ to `main` — enable it once under Settings → Pages → Source: GitHub Actions
 
 ## Using it
 
+Hold any player and drag: the line out of him is where he goes, and letting go
+near a bag or a teammate lands him on it exactly. Tap him without pulling to
+take the arrow back off.
+
+Everyone you point in the same step breaks together. When that beat is set,
+press **+** in the step bar and draw the next one — the players are now standing
+where the last step left them, so the arrows start from the right place. Tap any
+step number to go back and rework it.
+
+Press **Play** and the whole thing runs: step 1 together, a beat, step 2, and so
+on. The board is back at the start when it finishes, ready to run again — there
+is nothing to rewind and nothing to record.
+
 | Tool | What it does |
 | --- | --- |
-| **Move** | Drag any player, runner, or the ball. |
+| **Arrow** | Hold a player and drag to where he goes this step. |
+| **Select** | Reposition somebody without giving him a move — setting the picture, not the play. |
 | **Runner** | Tap the field to drop a runner. |
-| **Ball** | Tap to place the ball. Tapping again moves it — there's only one. |
+| **Ball** | Tap to place the ball. Tapping again moves it — there's only one. The ball takes arrows like anyone else, so a throw is a step and a relay is two. |
 | **Draw** | Freehand over the field with a finger or an Apple Pencil. |
-| **Erase** | Tap a runner, the ball, or a drawing to remove it. Fielders stay. |
-| **Route** | Tap where the ball goes, stop by stop. |
-| **Undo** | Step back the last change — a move, an add, a delete, a stroke. |
-| **New play** | Clear runners, the ball and drawings, and send the fielders home. |
+| **Erase** | Tap a runner, the ball, or a drawing to remove it, arrows and all. Fielders stay. |
+| **Undo** | Step back the last change — an arrow, a move, an add, a delete, a stroke. |
 
-To animate: press **Record**, move the players where they should end up, then
-press **Stop** — that saves the play and puts everyone back at the start so
-**Play** is ready. You can also press Play while still recording; whatever
-moved is the play. The rewind button puts everyone back at the start anytime.
+The chips above the step bar set the situation: tap a base to put a runner on
+it, tap it again to take him off.
 
-To show the ball travelling, pick the route tool and tap each place it goes —
-the fielder, the bag, the plate. Taps snap to whatever is under them, and the
-ball runs the legs in order when the play runs, pausing at each stop the way a
-fielder actually handles it.
+**Clear play** drops the arrows and leaves the situation you set up standing.
+**New** starts over: default fielders, nobody on, nothing drawn.
 
-The **0.5× / 1× / 2×** button sets the pace. 1× is the default; 2× is the rate
-the board originally ran at.
-
-**Plays** opens a library of 150 situations a 10-11U team should know, from a
-6-3 to playing a ball off the wall. Pick one and press Play.
-
-Picking a **position** in that list turns it into a study session for one
-player: it narrows to that position's top 25 plays in library order, says what
-that job is, rings them on the field, and gives you prev/next to walk through
-the lot.
+The **0.5× / 1× / 2×** button sets the pace. Each step takes 1.5 seconds at 1×.
 
 ## Layout
 
@@ -75,18 +76,23 @@ src/
   model/          # no React in here — pure logic, all of it unit tested
     fieldGeometry.ts   field dimensions, base and fielder positions, the SVG paths
     diagramState.ts    tokens, strokes, and the undo stack (a reducer)
-    tween.ts           interpolation between two arrangements, and along a route
-    plays.ts           the 150-play library, and the compiler that loads one
+    steps.ts           the play: steps, the arrangement entering each, playback
+    tween.ts           interpolation between two arrangements
     hitTest.ts         what a tap landed on
     path.ts            stroke smoothing and point/segment math
+    plays.ts           the 150-play library — built, parked, not mounted
   components/     # FieldSurface (static), FieldStage (pointer input), TokenLayer,
-                  # StrokeLayer, Toolbar, PlayControls, ToolIcons
+                  # MoveArrowLayer, StrokeLayer, StepBar, Toolbar, PlayControls
   hooks/          # useTween — the requestAnimationFrame transport
 ```
 
 `fieldGeometry.ts` is the single source of truth for where anything on the field
 sits; nothing else hardcodes a coordinate. Its proportions and colors are
 measured from the reference diagram — see DECISIONS.md for the model.
+
+The set-play library and the position-study mode are still in the tree with
+their tests, but nothing mounts them, so none of it ships — see "The play
+library, parked" in DECISIONS.md for why and how to bring it back.
 
 See [SPEC.md](SPEC.md) for the Phase 1 scope and [DECISIONS.md](DECISIONS.md)
 for the choices made where the spec left things open.

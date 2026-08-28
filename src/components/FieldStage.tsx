@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   clampToField,
   hitRadiusForScale,
@@ -8,12 +8,12 @@ import {
   viewBoxAttr,
   viewHeightFor,
 } from '../model/fieldGeometry';
-import { routeAt, snapToBase, snapToTarget, strokeAt, tokenAt } from '../model/hitTest';
+import { snapToBase, snapToTarget, strokeAt, tokenAt } from '../model/hitTest';
 import type { Point } from '../model/path';
-import type { DiagramAction } from '../model/diagramState';
-import type { DiagramState, PositionMap, Tool } from '../model/types';
+import { MIN_ARROW_LENGTH, type DiagramAction } from '../model/diagramState';
+import { arrangementBefore } from '../model/steps';
+import type { DiagramState, PositionMap, Token, Tool } from '../model/types';
 import { FieldSurface } from './FieldSurface';
-import { BallRouteLayer } from './BallRouteLayer';
 import { MoveArrowLayer } from './MoveArrowLayer';
 import { StrokeLayer } from './StrokeLayer';
 import { TokenLayer } from './TokenLayer';
@@ -24,8 +24,6 @@ interface Props {
   tool: Tool;
   /** Positions driven by the animation transport; suppresses interaction. */
   animating: PositionMap | null;
-  /** The position being studied, if any. */
-  highlight?: string | null;
 }
 
 interface AimState {
@@ -47,10 +45,7 @@ interface DragState {
 /** Ignore sub-pixel pointermove noise when recording a pen stroke. */
 const MIN_STROKE_STEP = 3;
 
-/** Shorter than this and the coach tapped rather than aimed. */
-const MIN_ARROW_LENGTH = 26;
-
-export function FieldStage({ state, dispatch, tool, animating, highlight }: Props) {
+export function FieldStage({ state, dispatch, tool, animating }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
   const [draft, setDraft] = useState<{ pointerId: number; points: Point[] } | null>(null);
@@ -93,6 +88,22 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     dispatch({ type: 'setPositions', positions });
   }, [viewHeight, dispatch]);
 
+  /**
+   * Where everybody stands entering the step being edited. A play is built one
+   * beat at a time, so the board has to show the beat being worked on rather
+   * than the top of the play.
+   */
+  const board = useMemo(
+    () => arrangementBefore(state.tokens, state.steps, state.activeStep),
+    [state.tokens, state.steps, state.activeStep],
+  );
+
+  /** The tokens as they stand in the step on screen, for hit testing. */
+  const placed: Token[] = useMemo(
+    () => state.tokens.map((t) => ({ ...t, ...(board[t.id] ?? { x: t.x, y: t.y }) })),
+    [state.tokens, board],
+  );
+
   const toFieldPoint = useCallback((event: React.PointerEvent): Point => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
@@ -129,8 +140,22 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     const p = toFieldPoint(event);
 
     switch (tool) {
+      case 'arrow': {
+        const token = tokenAt(placed, p, hitRadiusForScale(currentScale()));
+        if (!token) return;
+        capture(event);
+        // Hold the player and pull: the line out of him is where he is going
+        // this step, and it is drawn as it is dragged.
+        setAim({
+          pointerId: event.pointerId,
+          tokenId: token.id,
+          from: { x: token.x, y: token.y },
+          to: { x: token.x, y: token.y },
+        });
+        return;
+      }
       case 'select': {
-        const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
+        const token = tokenAt(placed, p, hitRadiusForScale(currentScale()));
         if (!token) return;
         capture(event);
         setDrag({
@@ -148,39 +173,10 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
       case 'addBall':
         dispatch({ type: 'addBall', at: clampToField(p, viewHeight) });
         return;
-      case 'move': {
-        const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
-        if (!token) return;
-        capture(event);
-        setAim({
-          pointerId: event.pointerId,
-          tokenId: token.id,
-          from: { x: token.x, y: token.y },
-          to: { x: token.x, y: token.y },
-        });
-        return;
-      }
-      case 'ballRoute': {
-        const ball = state.tokens.find((t) => t.type === 'ball');
-        // Bootstrap: with no ball on the field, the first tap places it.
-        if (!ball) {
-          dispatch({ type: 'addBall', at: clampToField(p, viewHeight) });
-          return;
-        }
-        dispatch({
-          type: 'addRouteLeg',
-          at: snapToTarget(state.tokens, clampToField(p, viewHeight), hitRadiusForScale(currentScale())),
-        });
-        return;
-      }
       case 'erase': {
-        const token = tokenAt(state.tokens, p, hitRadiusForScale(currentScale()));
+        const token = tokenAt(placed, p, hitRadiusForScale(currentScale()));
         if (token) {
           dispatch({ type: 'removeToken', id: token.id });
-          return;
-        }
-        if (routeAt(state.ballRoute, p)) {
-          dispatch({ type: 'clearRoute' });
           return;
         }
         const stroke = strokeAt(state.strokes, p);
@@ -216,7 +212,7 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     if (aim?.pointerId === event.pointerId) {
       const reach = Math.hypot(aim.to.x - aim.from.x, aim.to.y - aim.from.y);
       if (reach < MIN_ARROW_LENGTH) {
-        // A tap rather than a drag: take the arrow back off.
+        // A tap rather than a drag: take this step's arrow back off.
         dispatch({ type: 'clearDestination', id: aim.tokenId });
       } else {
         dispatch({
@@ -224,7 +220,7 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
           id: aim.tokenId,
           // Aimed at a bag or a teammate, land on it exactly.
           to: snapToTarget(
-            state.tokens.filter((t) => t.id !== aim.tokenId),
+            placed.filter((t) => t.id !== aim.tokenId),
             aim.to,
             hitRadiusForScale(currentScale()),
           ),
@@ -235,8 +231,7 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     if (drag?.pointerId === event.pointerId) {
       // One dispatch per drag, so undo steps back a whole move, not a frame.
       // Dropped near a bag, settle onto it rather than a pixel beside it.
-      const at = snapToBase(drag.at);
-      dispatch({ type: 'moveToken', id: drag.tokenId, x: at.x, y: at.y });
+      dispatch({ type: 'placeToken', id: drag.tokenId, to: snapToBase(drag.at) });
       setDrag(null);
     }
     if (draft?.pointerId === event.pointerId) {
@@ -254,9 +249,8 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
     if (draft?.pointerId === event.pointerId) setDraft(null);
   };
 
-  const overrides: PositionMap | null =
-    animating ?? (drag ? { [drag.tokenId]: drag.at } : null);
-
+  const positions: PositionMap =
+    animating ?? (drag ? { ...board, [drag.tokenId]: drag.at } : board);
 
   return (
     <svg
@@ -276,15 +270,14 @@ export function FieldStage({ state, dispatch, tool, animating, highlight }: Prop
       <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
       <MoveArrowLayer
         tokens={state.tokens}
-        start={state.start}
-        end={state.end}
+        steps={state.steps}
+        activeStep={state.activeStep}
         aiming={aim}
+        playing={animating !== null}
       />
-      <BallRouteLayer route={state.ballRoute} />
       <TokenLayer
         tokens={state.tokens}
-        overrides={overrides}
-        highlight={highlight}
+        overrides={positions}
         scale={tokenScaleForScale(pxPerUnit)}
       />
     </svg>

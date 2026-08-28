@@ -17,7 +17,16 @@ interface Props {
   onClose: () => void;
 }
 
-/** The library of set plays, grouped the way a practice plan is. */
+/**
+ * The library of set plays, grouped the way a practice plan is.
+ *
+ * Parked: nothing renders this. The board is built around drawing your own
+ * play in steps, and a shelf of 150 finished ones was answering a different
+ * question. It is kept whole — with plays.ts, roles.ts and defense.ts and all
+ * their tests — because the situations in it are the valuable part and putting
+ * it back is a matter of mounting this component again. Nothing imports it, so
+ * none of it ships.
+ */
 export function PlayLibrary({
   open,
   currentId,

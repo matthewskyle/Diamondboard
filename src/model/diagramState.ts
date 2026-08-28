@@ -1,9 +1,13 @@
 import { defaultFielderPosition, FIELDER_SPOTS } from './fieldGeometry';
 import type { Point } from './path';
+import { arrangementBefore, hasMoves, lastStepMoving, type PlayStep } from './steps';
 import type { DiagramState, PositionMap, Stroke, Token, UndoEntry } from './types';
 
 /** Deep enough for the common flow, shallow enough to stay cheap. */
 export const UNDO_DEPTH = 50;
+
+/** Below this a drag is a tap, and an arrow drawn that short is a mistake. */
+export const MIN_ARROW_LENGTH = 26;
 
 let idCounter = 0;
 export function nextId(prefix: string): string {
@@ -18,45 +22,46 @@ export function defaultTokens(): Token[] {
   });
 }
 
+export function emptyStep(): PlayStep {
+  return { id: nextId('step'), moves: {} };
+}
+
 export function initialState(): DiagramState {
   return {
     tokens: defaultTokens(),
     strokes: [],
-    ballRoute: [],
-    runnerRoutes: {},
-    start: null,
-    end: null,
+    steps: [emptyStep()],
+    activeStep: 0,
     undoStack: [],
   };
 }
 
 export type DiagramAction =
+  /** Move a token outright, in the play's starting arrangement. */
   | { type: 'moveToken'; id: string; x: number; y: number }
+  /**
+   * Put a token where the finger dropped it, in whichever arrangement is on
+   * screen: the start, or the arrival an earlier step already gave it.
+   */
+  | { type: 'placeToken'; id: string; to: Point }
+  /** Point a token somewhere in the active step. */
   | { type: 'setDestination'; id: string; to: Point }
+  /** Take back the active step's arrow for a token. */
   | { type: 'clearDestination'; id: string }
+  | { type: 'addStep' }
+  | { type: 'removeStep'; index: number }
+  | { type: 'setActiveStep'; index: number }
+  /** Throw the play away, leaving the players where they stand. */
+  | { type: 'clearSteps' }
   | { type: 'addRunner'; at: Point; label?: string }
   | { type: 'addBall'; at: Point }
   | { type: 'removeToken'; id: string }
   | { type: 'addStroke'; points: Point[] }
   | { type: 'removeStroke'; id: string }
-  | { type: 'addRouteLeg'; at: Point }
-  | { type: 'clearRoute' }
-  /** Bulk position write used by the animation transport. Not undoable. */
+  /** Bulk position write, used to rescue tokens a rotation cropped out. */
   | { type: 'setPositions'; positions: PositionMap }
-  | { type: 'captureStart' }
-  | { type: 'captureEnd' }
-  /** End a recording: store the current board as the end, then rewind to start. */
-  | { type: 'stopRecording' }
   | { type: 'undo' }
-  | { type: 'reset' }
-  | {
-      type: 'loadPlay';
-      tokens: Token[];
-      ballRoute: Point[];
-      runnerRoutes: Record<string, Point[]>;
-      start: PositionMap;
-      end: PositionMap;
-    };
+  | { type: 'reset' };
 
 export function diagramReducer(state: DiagramState, action: DiagramAction): DiagramState {
   switch (action.type) {
@@ -75,40 +80,83 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       );
     }
 
+    case 'placeToken': {
+      // On screen the token is standing wherever the play has left it. If that
+      // is an earlier step's arrival, dragging it adjusts that arrival — moving
+      // the top of the play instead would slide him out from under his own
+      // arrow.
+      const prior = lastStepMoving(state.steps, action.id, state.activeStep - 1);
+      if (prior === -1) {
+        return diagramReducer(state, {
+          type: 'moveToken',
+          id: action.id,
+          x: action.to.x,
+          y: action.to.y,
+        });
+      }
+      return writeDestination(state, prior, action.id, action.to);
+    }
+
     case 'setDestination': {
-      const token = state.tokens.find((t) => t.id === action.id);
-      if (!token) return state;
-      // The first arrow is what starts a play: everyone's spot right now
-      // becomes the start, and this token gets somewhere to be.
-      const start = state.start ?? capturePositions(state.tokens);
-      const end = { ...(state.end ?? start), [action.id]: action.to };
-      const runnerRoutes = { ...state.runnerRoutes };
-      // A hand-drawn arrow is a straight line; drop any base path the library
-      // gave this runner, or he would curve off toward a bag nobody aimed at.
-      const previousRoute = runnerRoutes[action.id];
-      delete runnerRoutes[action.id];
-      return push({ ...state, start, end, runnerRoutes }, {
-        kind: 'restoreDestination',
-        id: action.id,
-        to: state.end?.[action.id],
-        route: previousRoute,
-      });
+      if (!state.tokens.some((t) => t.id === action.id)) return state;
+      return writeDestination(state, state.activeStep, action.id, action.to);
     }
 
     case 'clearDestination': {
-      if (!state.end || !state.start) return state;
-      const current = state.end[action.id];
-      const home = state.start[action.id];
-      if (!current || !home) return state;
-      if (Math.abs(current.x - home.x) < 0.01 && Math.abs(current.y - home.y) < 0.01) return state;
-      const previousRoute = state.runnerRoutes[action.id];
-      const runnerRoutes = { ...state.runnerRoutes };
-      delete runnerRoutes[action.id];
-      return push({ ...state, end: { ...state.end, [action.id]: home }, runnerRoutes }, {
+      const step = state.steps[state.activeStep];
+      const current = step?.moves[action.id];
+      if (!current) return state;
+      const moves = { ...step.moves };
+      delete moves[action.id];
+      return push(withStep(state, state.activeStep, { ...step, moves }), {
         kind: 'restoreDestination',
+        step: state.activeStep,
         id: action.id,
         to: current,
-        route: previousRoute,
+      });
+    }
+
+    case 'addStep': {
+      // A step nobody has been given yet is already waiting; land on it rather
+      // than stacking a second empty one behind it.
+      const last = state.steps.length - 1;
+      if (last >= 0 && !hasMoves(state.steps[last])) {
+        return { ...state, activeStep: last };
+      }
+      return push(
+        { ...state, steps: [...state.steps, emptyStep()], activeStep: state.steps.length },
+        { kind: 'restoreSteps', steps: state.steps, activeStep: state.activeStep },
+      );
+    }
+
+    case 'removeStep': {
+      if (action.index < 0 || action.index >= state.steps.length) return state;
+      // There is always a step to draw into, so removing the only one empties
+      // it rather than leaving the board with nowhere to put an arrow.
+      const steps =
+        state.steps.length === 1
+          ? [emptyStep()]
+          : state.steps.filter((_, i) => i !== action.index);
+      const activeStep = Math.min(state.activeStep, steps.length - 1);
+      return push({ ...state, steps, activeStep }, {
+        kind: 'restoreSteps',
+        steps: state.steps,
+        activeStep: state.activeStep,
+      });
+    }
+
+    case 'setActiveStep': {
+      if (action.index < 0 || action.index >= state.steps.length) return state;
+      // Not undoable: looking at another step changes nothing about the play.
+      return { ...state, activeStep: action.index };
+    }
+
+    case 'clearSteps': {
+      if (state.steps.length === 1 && !hasMoves(state.steps[0])) return state;
+      return push({ ...state, steps: [emptyStep()], activeStep: 0 }, {
+        kind: 'restoreSteps',
+        steps: state.steps,
+        activeStep: state.activeStep,
       });
     }
 
@@ -121,7 +169,7 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
         y: action.at.y,
       };
       return push(
-        { ...state, tokens: [...state.tokens, token], ...withToken(state, token) },
+        { ...state, tokens: [...state.tokens, token] },
         { kind: 'removeToken', id: token.id },
       );
     }
@@ -139,7 +187,7 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       }
       const token: Token = { id: nextId('ball'), type: 'ball', x: action.at.x, y: action.at.y };
       return push(
-        { ...state, tokens: [...state.tokens, token], ...withToken(state, token) },
+        { ...state, tokens: [...state.tokens, token] },
         { kind: 'removeToken', id: token.id },
       );
     }
@@ -152,9 +200,9 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
         {
           ...state,
           tokens: state.tokens.filter((t) => t.id !== action.id),
-          ...withoutToken(state, action.id),
+          steps: withoutToken(state.steps, action.id),
         },
-        { kind: 'addToken', token: state.tokens[index], index },
+        { kind: 'addToken', token: state.tokens[index], index, steps: state.steps },
       );
     }
 
@@ -176,25 +224,6 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       );
     }
 
-    case 'addRouteLeg': {
-      // The first leg also anchors the route, at wherever the ball is standing.
-      const ball = state.tokens.find((t) => t.type === 'ball');
-      if (state.ballRoute.length === 0 && !ball) return state;
-      const route =
-        state.ballRoute.length === 0
-          ? [{ x: ball!.x, y: ball!.y }, action.at]
-          : [...state.ballRoute, action.at];
-      return push({ ...state, ballRoute: route }, {
-        kind: 'restoreRoute',
-        route: state.ballRoute,
-      });
-    }
-
-    case 'clearRoute': {
-      if (state.ballRoute.length === 0) return state;
-      return push({ ...state, ballRoute: [] }, { kind: 'restoreRoute', route: state.ballRoute });
-    }
-
     case 'setPositions':
       return {
         ...state,
@@ -204,146 +233,66 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
         }),
       };
 
-    case 'captureStart':
-      // Re-record throws the old play away: new start, no end yet, and none of
-      // the loaded play's base paths — from here the runners go where they are
-      // dragged.
-      return { ...state, start: capturePositions(state.tokens), end: null, runnerRoutes: {} };
-
-    case 'captureEnd':
-      return { ...state, end: capturePositions(state.tokens) };
-
-    case 'stopRecording': {
-      if (!state.start) return state;
-      // Nothing moved — cancel the recording rather than storing an empty play.
-      // Arrows drawn during the recording count: they are movement that was
-      // pointed at rather than dragged, and throwing them away would lose the
-      // play without saying so.
-      if (!hasMovedFrom(state.tokens, state.start) && !hasArrows(state.start, state.end)) {
-        return { ...state, start: null, end: null };
-      }
-      if (!hasMovedFrom(state.tokens, state.start) && hasArrows(state.start, state.end)) {
-        return state; // already a finished play; leave the arrows alone
-      }
-      const end = capturePositions(state.tokens);
-      const start = state.start;
-      return {
-        ...state,
-        end,
-        tokens: state.tokens.map((t) => {
-          const p = start[t.id];
-          return p ? { ...t, x: p.x, y: p.y } : t;
-        }),
-      };
-    }
-
     case 'undo':
       return applyUndo(state);
 
     case 'reset':
       return initialState();
 
-    case 'loadPlay':
-      // A library play arrives already recorded, so Play is live immediately.
-      // It replaces the board outright: undoing back into a previous play would
-      // leave a half-merged arrangement nobody asked for.
-      return {
-        tokens: action.tokens,
-        strokes: [],
-        ballRoute: action.ballRoute,
-        runnerRoutes: action.runnerRoutes,
-        start: action.start,
-        end: action.end,
-        undoStack: [],
-      };
-
     default:
       return state;
   }
 }
 
-/** Is anybody pointed somewhere other than where they stand? */
-export function hasArrows(start: PositionMap | null, end: PositionMap | null): boolean {
-  if (!start || !end) return false;
-  return Object.keys(end).some((id) => {
-    const from = start[id];
-    const to = end[id];
-    return !!from && !!to && Math.hypot(to.x - from.x, to.y - from.y) > 0.01;
-  });
+/** Is there anything to play? */
+export function hasPlay(state: DiagramState): boolean {
+  return state.steps.some(hasMoves);
 }
 
 /**
- * Has the board changed since an arrangement was captured? Drives the recording
- * controls: once something has moved, re-capturing the start would overwrite the
- * recording with the arrangement it was supposed to end at.
+ * Where a token stands on screen right now: the start arrangement with every
+ * step before the active one laid over it.
  */
-export function hasMovedFrom(
-  tokens: readonly Token[],
-  positions: PositionMap | null,
-): boolean {
-  if (!positions) return false;
-  if (Object.keys(positions).length !== tokens.length) return true; // added or removed
-  return tokens.some((t) => {
-    const p = positions[t.id];
-    return !p || Math.abs(p.x - t.x) > 0.01 || Math.abs(p.y - t.y) > 0.01;
-  });
-}
-
-/**
- * What pressing Play should show, given where the board stands.
- *
- * Prefer Stop to finish a recording (it stores the end and rewinds). Play can
- * still close an open recording: if anything has moved since Record, that
- * movement is the play and the current arrangement becomes its end. If nothing
- * has moved — the coach just stopped or rewound — the stored play is replayed
- * instead of collapsing to a play in which nothing happens.
- */
-export function resolvePlayback(
-  tokens: readonly Token[],
-  start: PositionMap | null,
-  storedEnd: PositionMap | null,
-): { from: PositionMap; to: PositionMap; captureEnd: boolean } | null {
-  if (!start) return null;
-  if (hasMovedFrom(tokens, start)) {
-    return { from: start, to: capturePositions(tokens), captureEnd: true };
-  }
-  if (storedEnd) return { from: start, to: storedEnd, captureEnd: false };
-  return null;
-}
-
-/**
- * A token that arrives once a play already exists has to enter both
- * arrangements, or adding a runner would read as movement and overwrite the
- * arrows already drawn. It starts and finishes in the same spot: it has nowhere
- * to be yet.
- *
- * An open recording (a start with no end) is left alone: there, a drag is how
- * the coach says where somebody finishes, and the board is meant to drift from
- * the captured start.
- */
-function withToken(state: DiagramState, token: Token): Pick<DiagramState, 'start' | 'end'> {
-  if (!state.start || !state.end) return { start: state.start, end: state.end };
-  const at = { x: token.x, y: token.y };
-  return {
-    start: { ...state.start, [token.id]: at },
-    end: { ...state.end, [token.id]: at },
-  };
-}
-
-function withoutToken(state: DiagramState, id: string): Pick<DiagramState, 'start' | 'end'> {
-  if (!state.start || !state.end) return { start: state.start, end: state.end };
-  const drop = (map: PositionMap) => {
-    const next = { ...map };
-    delete next[id];
-    return next;
-  };
-  return { start: drop(state.start), end: drop(state.end) };
+export function boardArrangement(state: DiagramState): PositionMap {
+  return arrangementBefore(state.tokens, state.steps, state.activeStep);
 }
 
 export function capturePositions(tokens: readonly Token[]): PositionMap {
   const positions: PositionMap = {};
   for (const t of tokens) positions[t.id] = { x: t.x, y: t.y };
   return positions;
+}
+
+function writeDestination(
+  state: DiagramState,
+  index: number,
+  id: string,
+  to: Point,
+): DiagramState {
+  const step = state.steps[index];
+  if (!step) return state;
+  const previous = step.moves[id];
+  if (previous && previous.x === to.x && previous.y === to.y) return state;
+  return push(withStep(state, index, { ...step, moves: { ...step.moves, [id]: to } }), {
+    kind: 'restoreDestination',
+    step: index,
+    id,
+    to: previous,
+  });
+}
+
+function withStep(state: DiagramState, index: number, step: PlayStep): DiagramState {
+  return { ...state, steps: state.steps.map((s, i) => (i === index ? step : s)) };
+}
+
+/** Drop a token out of every step, so an erased runner leaves no arrows behind. */
+function withoutToken(steps: readonly PlayStep[], id: string): PlayStep[] {
+  return steps.map((step) => {
+    if (!step.moves[id]) return step;
+    const moves = { ...step.moves };
+    delete moves[id];
+    return { ...step, moves };
+  });
 }
 
 function push(state: DiagramState, entry: UndoEntry): DiagramState {
@@ -367,25 +316,32 @@ function applyUndo(state: DiagramState): DiagramState {
         ),
       };
     case 'removeToken':
-      return { ...state, undoStack, tokens: state.tokens.filter((t) => t.id !== entry.id) };
+      return {
+        ...state,
+        undoStack,
+        tokens: state.tokens.filter((t) => t.id !== entry.id),
+        steps: withoutToken(state.steps, entry.id),
+      };
     case 'addToken': {
       const tokens = [...state.tokens];
       tokens.splice(entry.index, 0, entry.token);
-      return { ...state, undoStack, tokens };
+      return { ...state, undoStack, tokens, steps: entry.steps };
     }
-    case 'restoreRoute':
-      return { ...state, undoStack, ballRoute: entry.route };
     case 'restoreDestination': {
-      if (!state.end) return { ...state, undoStack };
-      const end = { ...state.end };
-      // No previous arrow means the token simply finishes where it stands.
-      if (entry.to) end[entry.id] = entry.to;
-      else if (state.start?.[entry.id]) end[entry.id] = state.start[entry.id];
-      const runnerRoutes = { ...state.runnerRoutes };
-      if (entry.route) runnerRoutes[entry.id] = entry.route;
-      else delete runnerRoutes[entry.id];
-      return { ...state, undoStack, end, runnerRoutes };
+      const step = state.steps[entry.step];
+      if (!step) return { ...state, undoStack };
+      const moves = { ...step.moves };
+      if (entry.to) moves[entry.id] = entry.to;
+      else delete moves[entry.id];
+      return { ...withStep(state, entry.step, { ...step, moves }), undoStack };
     }
+    case 'restoreSteps':
+      return {
+        ...state,
+        undoStack,
+        steps: entry.steps,
+        activeStep: Math.min(entry.activeStep, entry.steps.length - 1),
+      };
     case 'removeStroke':
       return { ...state, undoStack, strokes: state.strokes.filter((s) => s.id !== entry.id) };
     case 'addStroke': {

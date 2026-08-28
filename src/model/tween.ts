@@ -1,33 +1,9 @@
 import type { Point } from './path';
 import type { PositionMap } from './types';
 
-/**
- * How long a play runs at 1x. Half the rate the board originally used, because
- * full speed reads as a blur when the point is to see who went where; the old
- * rate is still there as 2x.
- */
-export const BASE_DURATION_MS = 3600;
-
 /** Slow, default, and the board's original pace. */
 export const PLAYBACK_SPEEDS = [0.5, 1, 2] as const;
 export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
-
-export function durationForSpeed(speed: number): number {
-  return BASE_DURATION_MS / speed;
-}
-
-/**
- * How long the ball is held at each stop, as a share of the whole playback, so
- * a throw arriving reads as someone catching it rather than the ball glancing
- * off. Capped in total, or a long relay would be more waiting than movement.
- */
-export const DWELL_SHARE_PER_STOP = 0.12;
-export const MAX_DWELL_SHARE = 0.45;
-
-export function dwellShareFor(stops: number): number {
-  if (stops <= 0) return 0;
-  return Math.min(stops * DWELL_SHARE_PER_STOP, MAX_DWELL_SHARE);
-}
 
 export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -39,10 +15,10 @@ export function lerpPoint(a: Point, b: Point, t: number): Point {
 
 /**
  * Interpolate one arrangement toward another. Deliberately knows nothing about
- * where the two arrangements came from — Phase 2 can pick a bracketing pair out
- * of an N-keyframe list and call this unchanged.
+ * where the two arrangements came from — `steps.ts` picks the pair bracketing
+ * the current beat and calls this unchanged.
  *
- * A token missing from either map stays put: it was added after capture.
+ * A token missing from either map stays put: it was added after the step.
  */
 export function interpolatePositions(
   from: PositionMap,
@@ -58,6 +34,32 @@ export function interpolatePositions(
     out[id] = b ? lerpPoint(a, b, eased) : a;
   }
   return out;
+}
+
+export function clamp01(t: number): number {
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
+
+/* --- Following a polyline ------------------------------------------------
+ *
+ * Parked with the play library (see DECISIONS.md). This drove the ball's route
+ * and the base paths a runner covers — a man scoring from second goes by way of
+ * third, not across the mound. A play drawn by hand is straight lines between
+ * beats, so nothing live calls this today; it is kept whole, with its tests,
+ * because the library it served is.
+ */
+
+/**
+ * How long the ball is held at each stop, as a share of the whole playback, so
+ * a throw arriving reads as someone catching it rather than the ball glancing
+ * off. Capped in total, or a long relay would be more waiting than movement.
+ */
+export const DWELL_SHARE_PER_STOP = 0.12;
+export const MAX_DWELL_SHARE = 0.45;
+
+export function dwellShareFor(stops: number): number {
+  if (stops <= 0) return 0;
+  return Math.min(stops * DWELL_SHARE_PER_STOP, MAX_DWELL_SHARE);
 }
 
 /**
@@ -104,8 +106,4 @@ export function pointAlongPath(
     remaining -= perStop;
   }
   return points[points.length - 1];
-}
-
-export function clamp01(t: number): number {
-  return t < 0 ? 0 : t > 1 ? 1 : t;
 }
