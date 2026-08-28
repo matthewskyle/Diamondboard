@@ -1,25 +1,12 @@
-import { useCallback, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
-import { PlayControls, type RecordState } from './components/PlayControls';
-import { PlayLibrary } from './components/PlayLibrary';
+import { PlayControls } from './components/PlayControls';
 import { SetupChips } from './components/SetupChips';
+import { StepBar } from './components/StepBar';
 import { Toolbar } from './components/Toolbar';
-import {
-  diagramReducer,
-  hasMovedFrom,
-  initialState,
-  resolvePlayback,
-} from './model/diagramState';
-import {
-  clamp01,
-  durationForSpeed,
-  dwellShareFor,
-  interpolatePositions,
-  pointAlongPath,
-  type PlaybackSpeed,
-} from './model/tween';
-import { compilePlay, PLAYS, type PlayDef } from './model/plays';
-import { playsForPosition } from './model/roles';
+import { diagramReducer, hasPlay, initialState } from './model/diagramState';
+import { durationForPlay, hasMoves, positionsDuring } from './model/steps';
+import { type PlaybackSpeed } from './model/tween';
 import type { PositionMap, Tool } from './model/types';
 import {
   BASE_SLOTS,
@@ -31,98 +18,50 @@ import {
 } from './model/setup';
 import { useTween } from './hooks/useTween';
 
+/** How long the finished arrangement is left on screen before the board resets. */
+const HOLD_AFTER_PLAY_MS = 700;
+
 export default function App() {
   const [state, dispatch] = useReducer(diagramReducer, undefined, initialState);
-  const [tool, setTool] = useState<Tool>('select');
+  const [tool, setTool] = useState<Tool>('arrow');
   const [animating, setAnimating] = useState<PositionMap | null>(null);
-  const [libraryOpen, setLibraryOpen] = useState(false);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
-  const [loadedPlay, setLoadedPlay] = useState<PlayDef | null>(null);
-  const [position, setPosition] = useState<string | null>(null);
 
-  const { start, end, ballRoute, runnerRoutes } = state;
+  /** The play as it stood when Play was pressed, so editing mid-run can't shift it. */
+  const clip = useRef<{ tokens: typeof state.tokens; steps: typeof state.steps } | null>(null);
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** The two arrangements being tweened, fixed when Play is pressed. */
-  const clip = useRef<{ from: PositionMap; to: PositionMap; route: readonly PositionMap[] } | null>(
-    null,
-  );
-  /** The ball's route for this playback, and how long it waits at each stop. */
-  const ballLeg = useRef<{
-    id: string;
-    path: { x: number; y: number }[];
-    dwellShare: number;
-  } | null>(null);
-  /** The base paths the runners cover, for a play that came with them. */
-  const runnerLegs = useRef<{ id: string; path: { x: number; y: number }[] }[]>([]);
+  const clearHold = useCallback(() => {
+    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  }, []);
+  useEffect(() => clearHold, [clearHold]);
 
   const { play, isPlaying } = useTween({
-    durationMs: durationForSpeed(speed),
+    durationMs: durationForPlay(state.steps, speed),
     onFrame: useCallback((t: number) => {
       const current = clip.current;
       if (!current) return;
-      const positions = interpolatePositions(current.from, current.to, t);
-      // Runners follow the base paths at constant speed so every bag reads —
-      // ease-in-out would sprint through first on the way to second.
-      const along = clamp01(t);
-      for (const runner of runnerLegs.current) {
-        positions[runner.id] = pointAlongPath(runner.path, along);
-      }
-      const leg = ballLeg.current;
-      // The ball follows its route instead of cutting straight across, and at a
-      // constant speed, so a long throw takes longer than a short one.
-      if (leg) positions[leg.id] = pointAlongPath(leg.path, t, leg.dwellShare);
-      setAnimating(positions);
+      setAnimating(positionsDuring(current.tokens, current.steps, t));
     }, []),
+    // Playback never wrote to the board, so letting the overlay go is the
+    // rewind: everyone is standing at the top of the play again, ready to run
+    // it a second time. The last frame is held for a beat first, or the finish
+    // — the part worth seeing — would vanish the instant it arrived.
     onDone: useCallback(() => {
-      const current = clip.current;
-      if (current) {
-        const positions = { ...current.to };
-        const leg = ballLeg.current;
-        if (leg) positions[leg.id] = leg.path[leg.path.length - 1];
-        dispatch({ type: 'setPositions', positions });
-      }
-      setAnimating(null);
+      holdTimer.current = setTimeout(() => {
+        setAnimating(null);
+        holdTimer.current = null;
+      }, HOLD_AFTER_PLAY_MS);
     }, []),
   });
 
   const handlePlay = useCallback(() => {
-    // A library play is watched rather than built, and has no rewind button of
-    // its own, so Play always runs the stored play from its start — however the
-    // board was left by the last time through.
-    const playback =
-      loadedPlay && start && end
-        ? { from: start, to: end, captureEnd: false }
-        : resolvePlayback(state.tokens, start, end);
-    if (!playback) return;
-    if (playback.captureEnd) dispatch({ type: 'captureEnd' });
-
-    clip.current = { from: playback.from, to: playback.to, route: [] };
-
-    const ball = state.tokens.find((t) => t.type === 'ball');
-    // The route is already a complete path, origin included.
-    ballLeg.current =
-      ball && ballRoute.length > 1
-        ? { id: ball.id, path: ballRoute, dwellShare: dwellShareFor(ballRoute.length - 2) }
-        : null;
-
-    // A stored route only describes the play it was loaded with. Once the board
-    // has been rearranged, whatever moved is the play, and it moves in a line.
-    runnerLegs.current = playback.captureEnd
-      ? []
-      : Object.entries(runnerRoutes)
-          .filter(([id, path]) => path.length > 2 && state.tokens.some((t) => t.id === id))
-          .map(([id, path]) => ({ id, path }));
-
+    if (!hasPlay(state)) return;
+    clearHold();
+    clip.current = { tokens: state.tokens, steps: state.steps };
     play();
-  }, [state.tokens, start, end, ballRoute, runnerRoutes, loadedPlay, play]);
-
-  const handleToStart = useCallback(() => {
-    if (start) dispatch({ type: 'setPositions', positions: start });
-  }, [start]);
-
-  const handleStop = useCallback(() => {
-    dispatch({ type: 'stopRecording' });
-  }, []);
+  }, [state, play, clearHold]);
 
   // Tap a base to put a runner on it; tap it again to take him off.
   const handleToggleSlot = useCallback(
@@ -149,70 +88,19 @@ export default function App() {
   }, [state.tokens]);
 
   const handleReset = useCallback(() => {
+    clearHold();
     setAnimating(null);
-    setLoadedPlay(null);
-    setPosition(null);
+    setTool('arrow');
     dispatch({ type: 'reset' });
-  }, []);
+  }, [clearHold]);
 
-  // Studying a position walks the plays it has a job in, in library order.
-  // Memoised so stepping does not rebuild the list on every render.
-  const studyPlays = useMemo(
-    () => (position ? playsForPosition(PLAYS, position) : []),
-    [position],
-  );
-  const studyIndex = loadedPlay ? studyPlays.indexOf(loadedPlay) : -1;
-
-  const loadPlay = useCallback((play: PlayDef) => {
-    setAnimating(null);
-    setLoadedPlay(play);
-    setTool('select');
-    dispatch({ type: 'loadPlay', ...compilePlay(play) });
-  }, []);
-
-  const handleSelectPlay = useCallback(
-    (play: PlayDef) => {
-      loadPlay(play);
-      setLibraryOpen(false);
-    },
-    [loadPlay],
-  );
-
-  const handleStep = useCallback(
-    (delta: number) => {
-      if (studyPlays.length === 0) return;
-      const next = (studyIndex + delta + studyPlays.length) % studyPlays.length;
-      loadPlay(studyPlays[next]);
-    },
-    [studyPlays, studyIndex, loadPlay],
-  );
-
-  const handlePositionChange = useCallback(
-    (next: string | null) => {
-      setPosition(next);
-      // Show this position's first play behind the list, so the field is already
-      // answering the question while the coach reads the rest of the options.
-      if (next) {
-        const plays = playsForPosition(PLAYS, next);
-        if (plays.length > 0) loadPlay(plays[0]);
-      }
-    },
-    [loadPlay],
-  );
-
-  const recordState: RecordState =
-    start === null ? 'idle' : end === null ? 'recording' : 'recorded';
+  const stepMovers = Object.keys(state.steps[state.activeStep]?.moves ?? {}).length;
+  const drawn = state.steps.some(hasMoves);
 
   return (
     <div className="app">
       <main className="stage">
-        <FieldStage
-          state={state}
-          dispatch={dispatch}
-          tool={tool}
-          animating={animating}
-          highlight={position}
-        />
+        <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} />
         <div className="play-dock">
           <SetupChips
             occupied={occupiedSlots(state.tokens)}
@@ -220,44 +108,37 @@ export default function App() {
             onLoadBases={handleLoadBases}
             disabled={isPlaying}
           />
-          {loadedPlay && (
-            <div className="play-caption">
-              <strong>{loadedPlay.name}</strong>
-              <span>{loadedPlay.teaches}</span>
-            </div>
-          )}
+          <div className="play-caption">
+            <strong>Step {state.activeStep + 1}</strong>
+            <span>
+              {stepMovers === 0
+                ? drawn
+                  ? 'Nobody moves yet — hold a player and drag him where he goes.'
+                  : 'Hold a player and drag to where he goes. Everyone drawn in a step breaks together.'
+                : stepMovers === 1
+                  ? 'One player moving. Point anyone else who breaks on this beat too.'
+                  : `${stepMovers} players break together here. Add a step for what happens next.`}
+            </span>
+          </div>
+          <StepBar
+            steps={state.steps}
+            activeStep={state.activeStep}
+            onSelect={(index) => dispatch({ type: 'setActiveStep', index })}
+            onAdd={() => dispatch({ type: 'addStep' })}
+            onRemove={(index) => dispatch({ type: 'removeStep', index })}
+            disabled={isPlaying}
+          />
           <PlayControls
-            onOpenLibrary={() => setLibraryOpen(true)}
-            onReset={handleReset}
-            onRecord={() => dispatch({ type: 'captureStart' })}
-            onStop={handleStop}
             onPlay={handlePlay}
-            onToStart={handleToStart}
-            recordState={recordState}
-            canPlay={resolvePlayback(state.tokens, start, end) !== null}
-            canRewind={start !== null && (end !== null || hasMovedFrom(state.tokens, start))}
+            onClear={() => dispatch({ type: 'clearSteps' })}
+            onReset={handleReset}
+            canPlay={drawn}
             speed={speed}
             onSpeedChange={setSpeed}
             isPlaying={isPlaying}
-            libraryPlay={loadedPlay !== null}
-            study={
-              position && studyIndex >= 0
-                ? { label: position, index: studyIndex, total: studyPlays.length }
-                : null
-            }
-            onStep={handleStep}
           />
         </div>
       </main>
-
-      <PlayLibrary
-        open={libraryOpen}
-        currentId={loadedPlay?.id ?? null}
-        position={position}
-        onPositionChange={handlePositionChange}
-        onSelect={handleSelectPlay}
-        onClose={() => setLibraryOpen(false)}
-      />
 
       <Toolbar
         tool={tool}

@@ -4,7 +4,6 @@ import {
   MoveArrowIcon,
   EraseIcon,
   PenIcon,
-  RouteIcon,
   RunnerIcon,
   SelectIcon,
   UndoIcon,
@@ -17,12 +16,13 @@ interface Props {
   canUndo: boolean;
 }
 
+// Drawing movement leads: it is what the board is for, and it is the tool the
+// app opens on.
 const TOOLS: ReadonlyArray<{ tool: Tool; label: string; Icon: () => React.ReactElement }> = [
-  { tool: 'select', label: 'Select and move', Icon: SelectIcon },
-  { tool: 'move', label: 'Point a player where to go', Icon: MoveArrowIcon },
+  { tool: 'arrow', label: 'Hold a player and drag to where he goes', Icon: MoveArrowIcon },
+  { tool: 'select', label: 'Reposition a player without giving him a move', Icon: SelectIcon },
   { tool: 'addRunner', label: 'Add runner', Icon: RunnerIcon },
   { tool: 'addBall', label: 'Place ball', Icon: BallIcon },
-  { tool: 'ballRoute', label: 'Draw where the ball goes', Icon: RouteIcon },
   { tool: 'pen', label: 'Draw', Icon: PenIcon },
   { tool: 'erase', label: 'Erase', Icon: EraseIcon },
 ];

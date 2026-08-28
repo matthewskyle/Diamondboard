@@ -1,12 +1,16 @@
 import type { Point } from '../model/path';
-import type { PositionMap, Token } from '../model/types';
+import { arrangementBefore, type PlayStep } from '../model/steps';
+import type { Token } from '../model/types';
 
 interface Props {
   tokens: readonly Token[];
-  start: PositionMap | null;
-  end: PositionMap | null;
+  steps: readonly PlayStep[];
+  /** The step being drawn into; its arrows are the live ones. */
+  activeStep: number;
   /** The arrow being dragged out right now, before it is committed. */
   aiming: { tokenId: string; from: Point; to: Point } | null;
+  /** Hide the steps that have not happened yet while a play is running. */
+  playing?: boolean;
 }
 
 /** Anything shorter than this is a token sitting still, not a move. */
@@ -25,23 +29,31 @@ function trimmed(from: Point, to: Point): Point {
   return { x: from.x + dx * keep, y: from.y + dy * keep };
 }
 
-/**
- * Where each player is going, drawn the way a coach draws it: a solid line with
- * an arrowhead, so a run reads differently from a throw. It is the same pair of
- * arrangements the animation uses, which means a recorded play and a library
- * play both show their movement without being asked.
- */
-export function MoveArrowLayer({ tokens, start, end, aiming }: Props) {
-  const arrows: { id: string; from: Point; to: Point; ball: boolean }[] = [];
+interface Arrow {
+  key: string;
+  step: number;
+  from: Point;
+  to: Point;
+  active: boolean;
+}
 
-  if (start && end) {
-    for (const token of tokens) {
-      if (aiming?.tokenId === token.id) continue; // shown live below
-      const from = start[token.id];
-      const to = end[token.id];
-      if (!from || !to) continue;
+/**
+ * Every step's arrows at once, the way a coach draws a play on a whiteboard:
+ * the whole thing is on the board, and the beat being worked on is the one in
+ * chalk. Each arrow carries its step number, so which players break together
+ * is readable without pressing Play.
+ */
+export function MoveArrowLayer({ tokens, steps, activeStep, aiming, playing }: Props) {
+  const arrows: Arrow[] = [];
+
+  for (let i = 0; i < steps.length; i++) {
+    const before = arrangementBefore(tokens, steps, i);
+    for (const [id, to] of Object.entries(steps[i].moves)) {
+      if (aiming?.tokenId === id && i === activeStep) continue; // shown live below
+      const from = before[id];
+      if (!from) continue;
       if (Math.hypot(to.x - from.x, to.y - from.y) < MIN_VISIBLE) continue;
-      arrows.push({ id: token.id, from, to, ball: token.type === 'ball' });
+      arrows.push({ key: `${steps[i].id}:${id}`, step: i, from, to, active: i === activeStep });
     }
   }
 
@@ -75,17 +87,26 @@ export function MoveArrowLayer({ tokens, start, end, aiming }: Props) {
           <path d="M 0 0 L 10 5 L 0 10 Z" className="fx-move-head-aiming" />
         </marker>
       </defs>
-      {arrows.map((arrow) => (
-        // The ball has its own dashed route; a straight hop is still its move.
-        <path
-          key={arrow.id}
-          d={`M ${arrow.from.x} ${arrow.from.y} L ${trimmed(arrow.from, arrow.to).x} ${
-            trimmed(arrow.from, arrow.to).y
-          }`}
-          className={arrow.ball ? 'fx-move fx-move-ball' : 'fx-move'}
-          markerEnd="url(#move-arrow-head)"
-        />
-      ))}
+      {arrows.map((arrow) => {
+        const tip = trimmed(arrow.from, arrow.to);
+        // While the play runs the tokens carry the story; keeping every step
+        // lit would leave the field a thicket of arrows to read through.
+        const className = playing
+          ? 'fx-move fx-move-past'
+          : arrow.active
+            ? 'fx-move'
+            : 'fx-move-past';
+        return (
+          <g key={arrow.key}>
+            <path
+              d={`M ${arrow.from.x} ${arrow.from.y} L ${tip.x} ${tip.y}`}
+              className={className}
+              markerEnd="url(#move-arrow-head)"
+            />
+            {!playing && <StepBadge from={arrow.from} to={tip} step={arrow.step} />}
+          </g>
+        );
+      })}
       {aiming && (
         <path
           d={`M ${aiming.from.x} ${aiming.from.y} L ${aiming.to.x} ${aiming.to.y}`}
@@ -93,6 +114,20 @@ export function MoveArrowLayer({ tokens, start, end, aiming }: Props) {
           markerEnd="url(#move-arrow-head-aiming)"
         />
       )}
+    </g>
+  );
+}
+
+/** The step number, sat on the arrow so a glance says when this move happens. */
+function StepBadge({ from, to, step }: { from: Point; to: Point; step: number }) {
+  const x = (from.x + to.x) / 2;
+  const y = (from.y + to.y) / 2;
+  return (
+    <g className="fx-step-badge">
+      <circle cx={x} cy={y} r={13} className="fx-step-badge-disc" />
+      <text x={x} y={y} textAnchor="middle" dominantBaseline="central" className="fx-step-badge-text">
+        {step + 1}
+      </text>
     </g>
   );
 }

@@ -183,6 +183,13 @@ public class DiagramState
 
 ## 8. Animation (on-demand, two-state)
 
+> **Superseded — see "Building a play in steps" in DECISIONS.md.** The board now
+> stores a play as an N-step list rather than one start/end pair, and the
+> Set Start / Set End flow is gone: where a token stands is the start, and an
+> arrow drawn on it is where it goes that step. This is the Phase-2 keyframe
+> model the note at the end of this section anticipated, arriving early, and it
+> landed exactly as predicted: the tweener took no changes at all.
+
 Phase 1 animation is deliberately simple: **a start arrangement and an end arrangement**, and
 a play button that tweens between them.
 
