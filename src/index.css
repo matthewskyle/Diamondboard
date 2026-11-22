@@ -315,8 +315,13 @@ body {
 .step-bar {
   display: flex;
   align-items: center;
+  /* The dock stretches its rows across the field. This one must not: at a
+     short wide window that empty hit target sits on the catcher. */
+  align-self: flex-start;
   flex-wrap: wrap;
   gap: 0.3rem;
+  width: fit-content;
+  max-width: 100%;
   padding: 0 calc(0.7rem + env(safe-area-inset-left));
 }
 
