@@ -252,9 +252,18 @@ export function hitRadiusForScale(pxPerUnit: number): number {
   return Math.max(TOKEN_HIT_RADIUS, MIN_TOUCH_TARGET_PX / 2 / pxPerUnit, drawn);
 }
 
-/** Keep dragged tokens on the board, whatever height it is currently drawn at. */
-export function clampToField(p: Point, viewHeight: number = VIEW_BOX.height): Point {
-  const m = TOKEN_RADIUS;
+/**
+ * Keep dragged tokens on the board, whatever height it is currently drawn at.
+ * `margin` is the drawn radius in viewBox units. It defaults to the unscaled
+ * fielder, and grows with the token on a phone so a center on the viewBox
+ * edge does not lose its circle to the clip.
+ */
+export function clampToField(
+  p: Point,
+  viewHeight: number = VIEW_BOX.height,
+  margin: number = TOKEN_RADIUS,
+): Point {
+  const m = margin;
   return {
     x: Math.min(Math.max(p.x, m), VIEW_BOX.width - m),
     y: Math.min(Math.max(p.y, m), viewHeight - m),
