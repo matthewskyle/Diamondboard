@@ -8,13 +8,21 @@ a step breaks at the same time, and the next step does not start until they have
 all arrived — so a rundown or a 6-4-3 reads the way it is coached. Built for an
 iPad in portrait first, then phone, then desktop.
 
+## Launch scope
+
+A home-screen PWA for coaches and players. It must work on iPad and iPhone in
+Safari and Brave. Launch target: Monday, February 1, 2027.
+
 ## Running it
 
 ```sh
 npm install
-npm run dev      # http://localhost:5173
-npm test         # unit tests
-npm run build    # production build into dist/
+npm run dev         # http://localhost:5173
+npm run lint        # oxlint
+npm run typecheck   # tsc -b
+npm run unit        # Vitest unit tests (npm test is the same)
+npm run build       # production build into dist/
+npm run e2e         # production build, then Playwright WebKit
 ```
 
 No backend, no accounts, nothing saved: the app is entirely client-side and a
@@ -33,10 +41,15 @@ offline** — every asset is precached on first visit, so it works on a field wi
 no signal. Updates install themselves the next time it is opened online.
 
 Hosting needs to be HTTPS (service workers require it; `localhost` is exempt).
-`.github/workflows/ci.yml` runs lint, typecheck, unit tests, and the production
-build on every pull request and on pushes to `main`. `.github/workflows/deploy.yml`
-publishes `dist/` to GitHub Pages only after that CI run has succeeded on `main`
-— enable Pages once under Settings → Pages → Source: GitHub Actions.
+`.github/workflows/ci.yml` runs `lint`, `typecheck`, `unit`, and `build` on every
+pull request and on pushes to `main`. `.github/workflows/e2e.yml` runs Playwright
+WebKit as `e2e-webkit` (`npm run e2e`). `.github/workflows/deploy.yml` publishes
+`dist/` to GitHub Pages only after that CI run has succeeded on `main` — enable
+Pages once under Settings → Pages → Source: GitHub Actions.
+
+The intended auto-merge rule for `main` is that required checks must be green
+and a failing check must not merge. The main-branch ruleset is not live yet; it
+still needs Kyle's admin action, so the rule is planned and not yet enforced.
 
 ## Using it
 
