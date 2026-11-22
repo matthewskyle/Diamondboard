@@ -1,0 +1,53 @@
+name: e2e-webkit
+
+# The job name is the GitHub check name: e2e-webkit.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  # upload-artifact writes the report and traces when the job fails.
+  actions: write
+
+concurrency:
+  group: e2e-webkit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-webkit:
+    name: e2e-webkit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps webkit
+
+      - run: npm run e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14

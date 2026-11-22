@@ -38,6 +38,8 @@ export function StepBar({ steps, activeStep, onSelect, onAdd, onRemove, disabled
                 ? `Step ${index + 1}, nobody moving yet`
                 : `Step ${index + 1}, ${movers} moving`
             }
+            data-testid={`step-${index + 1}`}
+            data-movers={movers}
             disabled={disabled}
             onClick={() => onSelect(index)}
           >
@@ -50,6 +52,7 @@ export function StepBar({ steps, activeStep, onSelect, onAdd, onRemove, disabled
         type="button"
         className="step-chip step-chip-add"
         aria-label="Add a step"
+        data-testid="add-step"
         disabled={disabled}
         onClick={onAdd}
       >

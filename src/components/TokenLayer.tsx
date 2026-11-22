@@ -47,9 +47,11 @@ function TokenShape({
   const transform =
     scale === 1 ? `translate(${at.x} ${at.y})` : `translate(${at.x} ${at.y}) scale(${scale})`;
 
+  const testId = `token-${token.label ?? token.id}`;
+
   if (token.type === 'ball') {
     return (
-      <g transform={transform} className="token token-ball">
+      <g transform={transform} className="token token-ball" data-testid={testId}>
         <circle r={BALL_RADIUS} className="tk-ball" />
         <path d={`M ${-BALL_RADIUS * 0.5} -8 Q 0 0 ${-BALL_RADIUS * 0.5} 8`} className="tk-seam" />
         <path d={`M ${BALL_RADIUS * 0.5} -8 Q 0 0 ${BALL_RADIUS * 0.5} 8`} className="tk-seam" />
@@ -61,7 +63,7 @@ function TokenShape({
   // glance, so they never compete with the fielders for attention.
   if (token.type === 'runner') {
     return (
-      <g transform={transform} className="token token-runner">
+      <g transform={transform} className="token token-runner" data-testid={testId}>
         <circle r={RUNNER_RADIUS} className="tk-runner" />
         {token.label && (
           <text className="tk-label tk-label-runner" textAnchor="middle" dominantBaseline="central">
@@ -73,7 +75,7 @@ function TokenShape({
   }
 
   return (
-    <g transform={transform} className="token token-fielder">
+    <g transform={transform} className="token token-fielder" data-testid={testId}>
       {highlighted && <circle r={TOKEN_RADIUS + 7} className="tk-highlight" />}
       <circle r={TOKEN_RADIUS} className="tk-fielder" />
       <text className="tk-label" textAnchor="middle" dominantBaseline="central">

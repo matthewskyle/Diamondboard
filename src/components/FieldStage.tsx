@@ -260,6 +260,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
       preserveAspectRatio="xMidYMid meet"
       role="application"
       aria-label="Baseball field diagram"
+      data-testid="field"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
