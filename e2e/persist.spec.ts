@@ -44,9 +44,21 @@ test('restores steps, the situation, and strokes after a reload', async ({ page 
   await page.getByTestId('add-step').tap();
   await expect(page.getByTestId('step-2')).toHaveAttribute('aria-pressed', 'true');
 
+  // An earlier edit already contains the runner, so wait until the save
+  // includes the step that was just added. Otherwise the poll returns the
+  // previous write.
   await expect
-    .poll(async () => page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY))
-    .toContain('"label":"R2"');
+    .poll(async () => {
+      const raw = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY);
+      if (!raw) return -1;
+      try {
+        const document = JSON.parse(raw) as { current?: { activeStep?: number } };
+        return document.current?.activeStep ?? -1;
+      } catch {
+        return -1;
+      }
+    })
+    .toBe(1);
 
   const saved = JSON.parse(
     (await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY)) ?? 'null',
@@ -57,9 +69,11 @@ test('restores steps, the situation, and strokes after a reload', async ({ page 
       activeStep: number;
       strokes: unknown[];
       steps: { moves: Record<string, unknown> }[];
+      tokens: { label?: string }[];
       undoStack: unknown[];
     };
   };
+  expect(saved.current.tokens.some((token) => token.label === 'R2')).toBe(true);
   expect(saved.version).toBe(1);
   expect(saved.plays).toEqual([]);
   expect(saved.current.activeStep).toBe(1);

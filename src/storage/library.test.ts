@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { diagramReducer, initialState, type DiagramState } from '../model/diagramState';
-import type { Token } from '../model/types';
+import { diagramReducer, initialState } from '../model/diagramState';
+import type { DiagramState, Token } from '../model/types';
 import {
   AUTOSAVE_DELAY_MS,
   SCHEMA_VERSION,

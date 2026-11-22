@@ -300,25 +300,74 @@ and no Mac.
   ~257 KB of static assets with no backend, so it can be cached in full and run
   with no network at all. Verified by loading it, cutting the network, reloading
   from the service worker, and dragging a fielder.
-- **`autoUpdate`** — a new version installs on the next online launch. There is
-  no unsaved work to interrupt, so a prompt would be noise.
+- **`autoUpdate`** — a new version installs on the next online launch. The open
+  board is already in localStorage, and leaving the page flushes the last
+  edit, so a prompt would be noise.
 - **`black-translucent` status bar**, with `.app` padding for
   `env(safe-area-inset-top)` — the field runs edge to edge under the clock.
 - **Icons are rendered from one SVG** at build time, each variant with the safe
   zone its mask wants: maskable icons keep the art inside the middle 80% for the
   circular crop, iOS gets a little margin for its rounded-rect mask.
 
-One consequence worth knowing: installing raises the expectation that work
-persists, and nothing does yet. An installed board still opens on the default
-arrangement every time. That makes Phase 2 persistence the next thing worth
-building, and it is also what a native App Store build would need first.
+Installing raises the expectation that work persists. The open board does —
+see below. A named list of plays does not, yet.
+
+## The board survives a reload
+
+The open board is written to `localStorage` under `diamondboard.library` and
+read back in the reducer's initializer, so the first paint is the restored
+board. The document is schema version 1:
+
+```ts
+{ version: 1, current: DiagramState, plays: SavedPlay[] }
+```
+
+`current` is the whole diagram: tokens (the situation is runners on the bases),
+strokes, steps, the step being edited, and the undo stack. The tool, the
+playback speed, and an in-progress animation are chrome, not the board, so they
+are not stored. A stroke still under the finger is not stored either — it
+commits on pointer-up, same as a drag.
+
+**localStorage, not IndexedDB.** The read has to be synchronous. An async
+restore either flashes the default nine and then swaps them, or waits on
+`indexedDB.open` before painting. Safari has a long history of that open never
+calling back in private mode or under storage pressure, and a board that waits
+forever is a board that is stuck. `localStorage` throws immediately when it
+cannot be used, and the app catches that and opens a clean board.
+
+The size fits. One board is nine fielders, a handful of runners, a few steps
+of coordinates, an undo stack capped at 50, and pen strokes. Thousands of
+points are still tens of kilobytes, against Safari's roughly 5 MB quota. A
+later My Plays list is the same document: named plays live in `plays`, and
+autosave rewrites `current` without dropping them. If a shelf of long ink
+sessions ever outgrows the quota, the `KeyValueStore` seam is where a
+different backend goes; the schema does not have to change to get there.
+
+Safari and Brave treat both stores as script-writable, so IndexedDB would not
+be more durable. Private mode cannot keep the board: Safari's `setItem` throws
+(zero quota) and Brave's private window drops the data when the window closes.
+Either way the throw is caught and the session stays in memory. A corrupt
+save, a document older than version 1, or a migration that cannot advance is
+discarded and replaced by the next successful write. A **newer** version is
+not written over — this build shows a clean board and leaves the bytes alone,
+so a newer schema is still there when the newer app opens.
+
+Writes are debounced 400 ms. The pen commits on pointer-up, so a stroke never
+shares a frame with `setItem`; the debounce folds a run of taps into one
+write. `pagehide`, `beforeunload`, and a hidden `visibilitychange` flush
+immediately, which is what a reload or an iPad app-switch needs.
+
+Version 1 is the first schema that shipped, so nothing older than it is
+migrated — it is rejected as corrupt. The walker is still there: `migrations[v]`
+upgrades v to v+1, a missing step or a step that forgets to bump the version
+rejects the document, and the tests drive a two-step chain through that path.
 
 ## Deliberately absent
 
-No save/load, no accounts, no templates, no landscape-specific layout. State is
-in memory only; a refresh resets the board — which now costs more than it did,
-because a play drawn in steps is real work. Persistence is the next thing worth
-building.
+No accounts, no templates, no named list of plays yet, no landscape-specific
+layout. The open board persists on the device. Saving, opening, renaming,
+duplicating, and deleting named plays is the next thing worth building, on
+the `plays` array already in this document.
 
 The set-play library is present in the repo but not mounted; see above.
 

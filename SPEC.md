@@ -5,7 +5,8 @@
 > shapes in §7 are implemented as TypeScript equivalents, and the open items in
 > §11 are resolved in [DECISIONS.md](DECISIONS.md).
 **Target devices (priority order):** iPad (Safari) → phone → desktop. Portrait-first.
-**Persistence:** None this phase. All state is in-memory client-side.
+**Persistence:** ~~None this phase.~~ The open board autosaves to localStorage
+and restores on reload — see DECISIONS.md, "The board survives a reload."
 
 ---
 
@@ -16,8 +17,9 @@ tokens around the field to teach positioning and situations, can freehand-draw o
 with a pen tool, and can trigger an on-demand animation that tweens tokens from a start
 arrangement to an end arrangement.
 
-This is a **client-only** app. Nothing is saved or loaded from a server. Refreshing the page
-resets to the default arrangement.
+This is a **client-only** app. Nothing is saved or loaded from a server.
+> Superseded for the open board: a refresh restores the last board from
+> localStorage. See DECISIONS.md.
 
 ### In scope (Phase 1)
 - Stylized field rendering matching the reference look (see §3).

@@ -25,8 +25,9 @@ npm run build       # production build into dist/
 npm run e2e         # production build, then Playwright WebKit
 ```
 
-No backend, no accounts, nothing saved: the app is entirely client-side and a
-refresh returns the board to its default arrangement.
+No backend and no accounts: the app is entirely client-side. The open board —
+the situation, the steps, and anything drawn — is saved in the browser and
+restored on refresh. A named list of plays is not built yet.
 
 ## Installing it on an iPad
 
@@ -96,9 +97,10 @@ src/
     hitTest.ts         what a tap landed on
     path.ts            stroke smoothing and point/segment math
     plays.ts           the 150-play library — built, parked, not mounted
+  storage/        # the on-device library: the open board and, later, named plays
   components/     # FieldSurface (static), FieldStage (pointer input), TokenLayer,
                   # MoveArrowLayer, StrokeLayer, StepBar, Toolbar, PlayControls
-  hooks/          # useTween — the requestAnimationFrame transport
+  hooks/          # useTween — the requestAnimationFrame transport; useAutosave
 ```
 
 `fieldGeometry.ts` is the single source of truth for where anything on the field
