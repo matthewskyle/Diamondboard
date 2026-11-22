@@ -33,8 +33,10 @@ offline** — every asset is precached on first visit, so it works on a field wi
 no signal. Updates install themselves the next time it is opened online.
 
 Hosting needs to be HTTPS (service workers require it; `localhost` is exempt).
-`.github/workflows/deploy.yml` publishes `dist/` to GitHub Pages on every push
-to `main` — enable it once under Settings → Pages → Source: GitHub Actions.
+`.github/workflows/ci.yml` runs lint, typecheck, unit tests, and the production
+build on every pull request and on pushes to `main`. `.github/workflows/deploy.yml`
+publishes `dist/` to GitHub Pages only after that CI run has succeeded on `main`
+— enable Pages once under Settings → Pages → Source: GitHub Actions.
 
 ## Using it
 

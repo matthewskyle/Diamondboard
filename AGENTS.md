@@ -8,11 +8,12 @@ Dependencies are refreshed automatically on startup (`npm ci`), so you do not ne
 
 - Dev server: `npm run dev` (Vite, http://localhost:5173) — run it as a long-lived process (e.g. a tmux-backed terminal), not in `install`.
 - Lint: `npm run lint` (oxlint)
-- Tests: `npm test` (Vitest, `src/**/*.test.ts`; the model layer under `src/model/` is fully unit-tested)
+- Typecheck: `npm run typecheck` (`tsc -b`)
+- Tests: `npm test` or `npm run unit` (Vitest, `src/**/*.test.ts`; the model layer under `src/model/` is fully unit-tested)
 - Build: `npm run build` (`tsc -b && vite build`); preview a built `dist/` with `npm run preview` (http://localhost:4173).
 
 Non-obvious notes:
 
-- CI (`.github/workflows/deploy.yml`) runs `npm ci` → `npm run lint` → `npm test` → `npm run build` on Node 22, then deploys `dist/` to GitHub Pages. Make sure all four pass before considering a change complete.
+- CI (`.github/workflows/ci.yml`) runs `lint`, `typecheck`, `unit`, and `build` as separate jobs on pull requests and on pushes to `main` (Ubuntu, Node 22). `.github/workflows/deploy.yml` publishes `dist/` to GitHub Pages only after that CI run has succeeded on `main`. Make sure all four pass before considering a change complete.
 - Fielder position tokens are fixed/non-draggable; runners, the ball, and freehand strokes are the draggable/editable elements (use the selection/pointer tool).
 - The service worker (`vite-plugin-pwa`) only activates in a built/previewed app over HTTPS (localhost is exempt); it is not active under `npm run dev`.
