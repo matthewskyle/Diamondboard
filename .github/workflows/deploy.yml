@@ -1,9 +1,15 @@
 name: Deploy
 
-# Only from the default branch, plus a manual run — so feature branches never
-# publish. Enable Pages first: Settings -> Pages -> Source: GitHub Actions.
+# Pages publishes only from main, and only for a commit whose CI workflow
+# has already succeeded. This file's workflow_run trigger is read from the
+# default branch, so pull requests never deploy.
+#
+# A manual run (workflow_dispatch) republishes main, and it also refuses to
+# upload unless this commit has a successful CI run.
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -12,25 +18,51 @@ permissions:
   pages: write
   id-token: write
   # overwrite: true on the artifact upload deletes the previous artifact first,
-  # which needs write access to the Actions API.
+  # which needs write access to the Actions API. The same permission lets a
+  # manual run look up the CI result for this commit.
   actions: write
 
+# A CI completion always starts this workflow; the job below no-ops unless
+# this commit should actually publish. cancel-in-progress is true only in
+# that case, so a failed or outdated CI run cannot abort a newer upload.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha) }}
 
 jobs:
-  build:
+  pages:
+    # head_sha == github.sha skips an older main commit whose CI finished
+    # after a newer commit was already pushed, so a slow run cannot roll
+    # the site back. github.sha on workflow_run is the tip of the default branch.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_sha == github.sha)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run lint
-      - run: npm test
+      - name: Require a successful CI run for this commit
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          conclusion="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success&per_page=1" --jq '.workflow_runs[0].conclusion // empty')"
+          if [ "$conclusion" != "success" ]; then
+            echo "CI has not succeeded for ${GITHUB_SHA}; refusing to deploy."
+            exit 1
+          fi
+          echo "CI succeeded for ${GITHUB_SHA}."
       - run: npm run build
       # Inlined from actions/upload-pages-artifact@v3 so the upload can pass
       # overwrite: true. Re-running the build job leaves the earlier upload in
@@ -53,7 +85,7 @@ jobs:
           overwrite: true
 
   deploy:
-    needs: build
+    needs: pages
     runs-on: ubuntu-latest
     environment:
       name: github-pages
