@@ -30,6 +30,7 @@ export function PlayControls({
         <button
           type="button"
           className="pill pill-primary"
+          data-testid="play"
           onClick={onPlay}
           disabled={!canPlay || isPlaying}
         >

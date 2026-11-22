@@ -47,6 +47,7 @@ export function Toolbar({ tool, onToolChange, onUndo, canUndo }: Props) {
         type="button"
         className="tool-button"
         aria-label="Undo"
+        data-testid="undo"
         onClick={onUndo}
         disabled={!canUndo}
       >

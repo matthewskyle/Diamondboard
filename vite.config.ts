@@ -1,5 +1,5 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
@@ -45,6 +45,8 @@ export default defineConfig({
   base: './',
   test: {
     environment: 'node',
+    // Browser journeys live in e2e/ and run under Playwright (`npm run e2e`).
     include: ['src/**/*.test.ts'],
+    exclude: [...configDefaults.exclude, 'e2e/**', '**/e2e/**'],
   },
 })

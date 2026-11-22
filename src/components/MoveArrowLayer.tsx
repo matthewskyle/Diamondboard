@@ -102,6 +102,8 @@ export function MoveArrowLayer({ tokens, steps, activeStep, aiming, playing }: P
               d={`M ${arrow.from.x} ${arrow.from.y} L ${tip.x} ${tip.y}`}
               className={className}
               markerEnd="url(#move-arrow-head)"
+              data-testid="move-arrow"
+              data-step={arrow.step + 1}
             />
             {!playing && <StepBadge from={arrow.from} to={tip} step={arrow.step} />}
           </g>
