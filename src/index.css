@@ -439,6 +439,18 @@ body {
     max-width: 14rem;
   }
 
+  /* My plays joins this row. At full padding the row reaches the catcher,
+     so tighten it instead of wrapping onto the chips. */
+  .play-controls,
+  .play-controls .pill-group {
+    gap: 0.25rem;
+  }
+
+  .play-controls .pill {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
   /* The coaching line is long enough to reach the infielders. Keep it in the
      left gutter, short of third base. */
   .play-caption {
