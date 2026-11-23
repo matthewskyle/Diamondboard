@@ -99,6 +99,8 @@ export type DiagramAction =
   | { type: 'addStep' }
   | { type: 'removeStep'; index: number }
   | { type: 'setActiveStep'; index: number }
+  /** Write, change, or (with blank text) clear a step's coaching note. */
+  | { type: 'setStepNote'; index: number; note: string }
   /** Throw the play away, leaving the players where they stand. */
   | { type: 'clearSteps' }
   | { type: 'addRunner'; at: Point; label?: string }
@@ -204,8 +206,24 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
       return { ...state, activeStep: action.index };
     }
 
+    case 'setStepNote': {
+      const step = state.steps[action.index];
+      if (!step) return state;
+      const note = cleanNote(action.note);
+      if (note === step.note) return state;
+      const { note: _previous, ...rest } = step;
+      const next: PlayStep = note === undefined ? rest : { ...rest, note };
+      // One undo entry per committed note: the editor commits on Done, not per keystroke.
+      return push(withStep(state, action.index, next), {
+        kind: 'restoreSteps',
+        steps: state.steps,
+        activeStep: state.activeStep,
+      });
+    }
+
     case 'clearSteps': {
-      if (state.steps.length === 1 && !hasMoves(state.steps[0])) return state;
+      const only = state.steps[0];
+      if (state.steps.length === 1 && !hasMoves(only) && only.note === undefined) return state;
       return push({ ...state, steps: [emptyStep()], activeStep: 0 }, {
         kind: 'restoreSteps',
         steps: state.steps,
@@ -298,6 +316,19 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
     default:
       return state;
   }
+}
+
+/** A sentence or two. The editor stops typing here; this also catches pastes and old saves. */
+export const NOTE_MAX_LENGTH = 280;
+
+/**
+ * The note as it will be stored, or undefined when nothing worth showing is
+ * left, which hides it.
+ */
+export function cleanNote(raw: string): string | undefined {
+  // One compact paragraph: a pasted line break would push the note up over the field.
+  const note = raw.replace(/\s+/g, ' ').trim().slice(0, NOTE_MAX_LENGTH).trimEnd();
+  return note.length > 0 ? note : undefined;
 }
 
 /** Is there anything to play? */

@@ -6,6 +6,8 @@ interface Props {
   onSelect: (index: number) => void;
   onAdd: () => void;
   onRemove: (index: number) => void;
+  /** Open the coaching note editor for the active step. */
+  onEditNote: () => void;
   disabled: boolean;
 }
 
@@ -18,7 +20,7 @@ function moverCount(step: PlayStep): number {
  * entering that step, so a coach builds the play the way it happens: set the
  * first break, add a step, set what follows.
  */
-export function StepBar({ steps, activeStep, onSelect, onAdd, onRemove, disabled }: Props) {
+export function StepBar({ steps, activeStep, onSelect, onAdd, onRemove, onEditNote, disabled }: Props) {
   const active = steps[activeStep];
   const removable = steps.length > 1 || (active !== undefined && hasMoves(active));
 
@@ -66,6 +68,18 @@ export function StepBar({ steps, activeStep, onSelect, onAdd, onRemove, disabled
         onClick={() => onRemove(activeStep)}
       >
         ✕
+      </button>
+      <button
+        type="button"
+        className="pill pill-light step-note-edit"
+        data-testid="step-note-edit"
+        aria-label={
+          active?.note ? `Edit the note on step ${activeStep + 1}` : `Add a note to step ${activeStep + 1}`
+        }
+        disabled={disabled}
+        onClick={onEditNote}
+      >
+        {active?.note ? 'Edit note' : '+ Note'}
       </button>
     </div>
   );

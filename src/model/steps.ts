@@ -20,6 +20,12 @@ export interface PlayStep {
   id: string;
   /** Token id -> where that token finishes this step. Only the movers appear. */
   moves: PositionMap;
+  /**
+   * What the coach wants players to take from this beat — who fields, who
+   * cuts, who covers, and why. Absent rather than empty, so a step with no
+   * note shows nothing.
+   */
+  note?: string;
 }
 
 /** How long one step takes at 1x. */
@@ -121,6 +127,17 @@ export function positionsDuring(
     arrangementAfter(tokens, steps, index),
     local,
   );
+}
+
+/**
+ * The index of the step running `t` of the way through the play, on the same
+ * clock as `positionsDuring`, or -1 when nothing moves.
+ */
+export function stepPlayingAt(steps: readonly PlayStep[], t: number): number {
+  const playable = playableSteps(steps);
+  if (playable.length === 0) return -1;
+  const slot = Math.min(Math.floor(clamp01(t) * playable.length), playable.length - 1);
+  return playable[slot];
 }
 
 /** Is this token pointed anywhere in this step? */

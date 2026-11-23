@@ -495,7 +495,12 @@ function parseSteps(value: unknown): PlayStep[] | null {
       moves[id] = parsed;
     }
     seen.add(raw.id);
-    steps.push({ id: raw.id, moves });
+    const step: PlayStep = { id: raw.id, moves };
+    if (raw.note !== undefined) {
+      if (typeof raw.note !== 'string') return null;
+      step.note = raw.note;
+    }
+    steps.push(step);
   }
   return steps;
 }

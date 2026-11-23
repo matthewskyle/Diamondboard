@@ -4,6 +4,7 @@ import { MyPlays } from './components/MyPlays';
 import { PlayControls } from './components/PlayControls';
 import { SetupChips } from './components/SetupChips';
 import { StepBar } from './components/StepBar';
+import { StepNote } from './components/StepNote';
 import { Toolbar } from './components/Toolbar';
 import { useAutosave } from './hooks/useAutosave';
 import { diagramReducer, hasPlay, initialState } from './model/diagramState';
@@ -19,7 +20,7 @@ import {
   savePlay,
   type PlaySummary,
 } from './storage/library';
-import { durationForPlay, hasMoves, positionsDuring } from './model/steps';
+import { durationForPlay, hasMoves, positionsDuring, stepPlayingAt } from './model/steps';
 import { type PlaybackSpeed } from './model/tween';
 import type { PositionMap, Tool } from './model/types';
 import {
@@ -69,6 +70,13 @@ export default function App() {
   useAutosave(state, boot.persist);
   const [tool, setTool] = useState<Tool>('arrow');
   const [animating, setAnimating] = useState<PositionMap | null>(null);
+  /**
+   * The running step and its note, taken from the clip so an edit mid-run
+   * cannot change what is being taught. Null when no play is on screen.
+   */
+  const [playing, setPlaying] = useState<{ step: number; note: string | undefined } | null>(null);
+  /** The coaching note being typed, or null when no editor is open. */
+  const [noteDraft, setNoteDraft] = useState<string | null>(null);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [playsOpen, setPlaysOpen] = useState(false);
   const [savedPlays, setSavedPlays] = useState<PlaySummary[]>([]);
@@ -91,6 +99,10 @@ export default function App() {
       const current = clip.current;
       if (!current) return;
       setAnimating(positionsDuring(current.tokens, current.steps, t));
+      const step = stepPlayingAt(current.steps, t);
+      setPlaying((prev) =>
+        prev?.step === step ? prev : { step, note: current.steps[step]?.note },
+      );
     }, []),
     // Playback never wrote to the board, so letting the overlay go is the
     // rewind: everyone is standing at the top of the play again, ready to run
@@ -99,6 +111,7 @@ export default function App() {
     onDone: useCallback(() => {
       holdTimer.current = setTimeout(() => {
         setAnimating(null);
+        setPlaying(null);
         holdTimer.current = null;
       }, HOLD_AFTER_PLAY_MS);
     }, []),
@@ -106,6 +119,7 @@ export default function App() {
 
   const handlePlay = useCallback(() => {
     if (!hasPlay(state)) return;
+    setNoteDraft(null);
     clearHold();
     clip.current = { tokens: state.tokens, steps: state.steps };
     play();
@@ -138,6 +152,8 @@ export default function App() {
   const handleReset = useCallback(() => {
     clearHold();
     setAnimating(null);
+    setPlaying(null);
+    setNoteDraft(null);
     setTool('arrow');
     dispatch({ type: 'reset' });
   }, [clearHold]);
@@ -187,6 +203,8 @@ export default function App() {
       clip.current = null;
       stop();
       setAnimating(null);
+      setPlaying(null);
+      setNoteDraft(null);
       dispatch({ type: 'load', board: result.board });
       setPlaysOpen(false);
     },
@@ -229,6 +247,9 @@ export default function App() {
 
   const stepMovers = Object.keys(state.steps[state.activeStep]?.moves ?? {}).length;
   const drawn = state.steps.some(hasMoves);
+  // During Play, and the hold after it, the note follows the running step.
+  const noteStep = playing ? playing.step : state.activeStep;
+  const shownNote = playing ? playing.note : state.steps[state.activeStep]?.note;
 
   return (
     <div className="app">
@@ -242,8 +263,8 @@ export default function App() {
             disabled={isPlaying}
           />
           <div className="play-caption">
-            <strong>Step {state.activeStep + 1}</strong>
-            <span>
+            <strong>Step {noteStep + 1}</strong>
+            <span hidden={shownNote !== undefined}>
               {stepMovers === 0
                 ? drawn
                   ? 'Nobody moves yet — hold a player and drag him where he goes.'
@@ -253,12 +274,31 @@ export default function App() {
                   : `${stepMovers} players break together here. Add a step for what happens next.`}
             </span>
           </div>
+          <StepNote
+            stepNumber={noteStep + 1}
+            note={shownNote}
+            draft={playing ? null : noteDraft}
+            onDraftChange={setNoteDraft}
+            onCommit={(note) => dispatch({ type: 'setStepNote', index: state.activeStep, note })}
+          />
           <StepBar
             steps={state.steps}
             activeStep={state.activeStep}
-            onSelect={(index) => dispatch({ type: 'setActiveStep', index })}
-            onAdd={() => dispatch({ type: 'addStep' })}
-            onRemove={(index) => dispatch({ type: 'removeStep', index })}
+            // Changing steps drops an unsaved draft rather than writing it onto
+            // the wrong step.
+            onSelect={(index) => {
+              setNoteDraft(null);
+              dispatch({ type: 'setActiveStep', index });
+            }}
+            onAdd={() => {
+              setNoteDraft(null);
+              dispatch({ type: 'addStep' });
+            }}
+            onRemove={(index) => {
+              setNoteDraft(null);
+              dispatch({ type: 'removeStep', index });
+            }}
+            onEditNote={() => setNoteDraft(state.steps[state.activeStep]?.note ?? '')}
             disabled={isPlaying}
           />
           <PlayControls
