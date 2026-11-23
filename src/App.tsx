@@ -278,7 +278,7 @@ export default function App() {
         tool={tool}
         onToolChange={setTool}
         onUndo={() => dispatch({ type: 'undo' })}
-        canUndo={state.undoStack.length > 0}
+        canUndo={state.undoStack.length > 0 && !isPlaying}
       />
 
       {playsOpen && (
