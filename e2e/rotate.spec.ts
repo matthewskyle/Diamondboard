@@ -78,7 +78,14 @@ async function dragToken(page: Page, testId: string, to: Point): Promise<void> {
   const end = await screenPoint(page, to);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   await page.mouse.move(end.x, end.y, { steps: 24 });
+  // WebKit can coalesce a rapid mouse.move sequence. Wait for the final
+  // pointer move to render before releasing and committing the drag.
+  await expect.poll(async () => {
+    const point = await tokenPoint(page, testId);
+    return Math.hypot(point.x - to.x, point.y - to.y);
+  }).toBeLessThanOrEqual(1.5);
   await page.mouse.up();
 }
 

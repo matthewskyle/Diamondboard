@@ -55,3 +55,23 @@ test('loops until stopped and keeps transport controls reachable', async ({ page
   await page.getByRole('button', { name: 'Stop playback and return to start', exact: true }).tap();
   await expect(page.getByTestId('undo')).toBeEnabled();
 });
+
+
+test('steps across multiple beats and skips empty steps', async ({ page }) => {
+  await page.goto('/');
+  const id = await drawArrow(page);
+  await page.getByTestId('add-step').tap();
+  const firstFinish = await page.getByTestId(id).getAttribute('transform');
+  await page.getByTestId('add-step').tap();
+  await drawArrow(page);
+  await page.getByTestId('step-1').tap();
+  await page.getByRole('button', { name: 'Next beat', exact: true }).tap();
+  await expect(page.getByTestId(id)).toHaveAttribute('transform', firstFinish!);
+  await expect(page.getByRole('button', { name: 'Next beat', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Next beat', exact: true }).tap();
+  await expect(page.getByRole('button', { name: 'Next beat', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Previous beat', exact: true }).tap();
+  await expect(page.getByTestId(id)).toHaveAttribute('transform', firstFinish!);
+  await page.getByRole('button', { name: 'Stop playback and return to start', exact: true }).tap();
+  await expect(page.getByTestId('step-1')).toHaveAttribute('aria-pressed', 'true');
+});

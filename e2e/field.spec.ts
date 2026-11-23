@@ -45,7 +45,7 @@ test('draws an arrow, adds a step, plays, and undoes', async ({ page }) => {
   if (!origin) throw new Error(`${tokenId} disappeared before Play`);
 
   await play.tap();
-  await expect(play).toBeDisabled();
+  await expect(play).toHaveAccessibleName('Pause playback');
   await expect
     .poll(
       async () => {
@@ -114,14 +114,14 @@ test('disables undo while a play is running', async ({ page }) => {
   if (!origin) throw new Error(`${tokenId} disappeared before Play`);
 
   await play.tap();
-  await expect(play).toBeDisabled();
+  await expect(play).toHaveAccessibleName('Pause playback');
   await expect(undo).toBeDisabled();
 
   // Undo must not take step 2's arrow off while the original clip is still running.
   await expect(page.getByTestId('step-2')).toHaveAttribute('data-movers', '1');
   await expect(arrow).toHaveCount(2);
   await expect(caption).not.toContainText('Nobody moves yet');
-  await expect(play).toBeDisabled();
+  await expect(play).toHaveAccessibleName('Pause playback');
 
   await expect
     .poll(
