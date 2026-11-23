@@ -30,7 +30,7 @@ This is a **client-only** app. Nothing is saved or loaded from a server.
 - Toolbar: select, add-token, pen, undo, erase, reset, and animation controls.
 
 ### Out of scope (Phase 1 — do NOT build)
-- Save/load, "My plays" library, accounts, sharing links, any backend or database.
+- ~~Save/load, "My plays" library~~ The open board autosaves, and My Plays saves, opens, renames, duplicates, and deletes named boards in that same on-device document. Accounts, sharing links, and any backend or database stay out.
 - Pre-determined/template plays.
 - Multi-keyframe timelines (Phase 1 animation is exactly two states: start → end).
 - Realistic field geometry (Phase 1 uses the stylized proportions from the reference).

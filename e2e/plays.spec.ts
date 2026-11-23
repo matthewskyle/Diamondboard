@@ -50,7 +50,7 @@ test('saves, opens, renames, duplicates, and deletes a play', async ({ page }) =
   await expect(page.getByTestId('token-SS')).toBeVisible();
 
   const reopened = await openMyPlays(page);
-  await reopened.getByRole('button', { name: 'Open Hit and run' }).tap();
+  await reopened.getByRole('button', { name: 'Open Hit and run', exact: true }).tap();
   await expect(reopened).toBeHidden();
   await expect(page.getByTestId('token-R2')).toBeVisible();
   await expect(page.getByTestId('token-SS')).toBeVisible();
@@ -63,27 +63,27 @@ test('saves, opens, renames, duplicates, and deletes a play', async ({ page }) =
   const listed = await openMyPlays(page);
   await expect(listed.getByRole('listitem', { name: 'Hit and run', exact: true })).toBeVisible();
 
-  await listed.getByRole('button', { name: 'Rename Hit and run' }).tap();
-  const rename = listed.getByRole('textbox', { name: 'New name for Hit and run' });
+  await listed.getByRole('button', { name: 'Rename Hit and run', exact: true }).tap();
+  const rename = listed.getByRole('textbox', { name: 'New name for Hit and run', exact: true });
   await expect(rename).toBeVisible();
   await rename.fill('Bunt');
-  await listed.getByRole('button', { name: 'Save name' }).tap();
+  await listed.getByRole('button', { name: 'Save name', exact: true }).tap();
   await expect(listed.getByRole('listitem', { name: 'Bunt', exact: true })).toBeVisible();
   await expect(listed.getByRole('listitem', { name: 'Hit and run', exact: true })).toHaveCount(0);
 
-  await listed.getByRole('button', { name: 'Duplicate Bunt' }).tap();
+  await listed.getByRole('button', { name: 'Duplicate Bunt', exact: true }).tap();
   await expect(listed.getByRole('listitem', { name: 'Bunt copy', exact: true })).toBeVisible();
   await expect(listed.getByRole('listitem')).toHaveCount(2);
 
-  await listed.getByRole('button', { name: 'Delete Bunt copy' }).tap();
-  const confirmCopy = listed.getByRole('button', { name: 'Confirm delete Bunt copy' });
+  await listed.getByRole('button', { name: 'Delete Bunt copy', exact: true }).tap();
+  const confirmCopy = listed.getByRole('button', { name: 'Confirm delete Bunt copy', exact: true });
   await expect(confirmCopy).toBeVisible();
   await confirmCopy.tap();
   await expect(listed.getByRole('listitem', { name: 'Bunt copy', exact: true })).toHaveCount(0);
   await expect(listed.getByRole('listitem', { name: 'Bunt', exact: true })).toBeVisible();
 
-  await listed.getByRole('button', { name: 'Delete Bunt' }).tap();
-  const confirm = listed.getByRole('button', { name: 'Confirm delete Bunt' });
+  await listed.getByRole('button', { name: 'Delete Bunt', exact: true }).tap();
+  const confirm = listed.getByRole('button', { name: 'Confirm delete Bunt', exact: true });
   await expect(confirm).toBeVisible();
   await confirm.tap();
   await expect(listed.getByRole('listitem')).toHaveCount(0);
@@ -127,7 +127,7 @@ test('a saved play stays put when the open board changes', async ({ page }) => {
 
   const again = await openMyPlays(page);
   await expect(again.getByRole('listitem', { name: 'Hit and run', exact: true })).toBeVisible();
-  await again.getByRole('button', { name: 'Open Hit and run' }).tap();
+  await again.getByRole('button', { name: 'Open Hit and run', exact: true }).tap();
   await expect(again).toBeHidden();
   await expect(page.getByTestId('token-R2')).toBeVisible();
   await expect(page.getByTestId('token-SS')).toBeVisible();
@@ -143,8 +143,8 @@ async function openMyPlays(page: Page): Promise<Locator> {
 
 /** Saves and does not return until that name is in the list. */
 async function saveNamedPlay(dialog: Locator, name: string): Promise<void> {
-  await dialog.getByRole('textbox', { name: 'Play name' }).fill(name);
-  await dialog.getByRole('button', { name: 'Save play' }).tap();
+  await dialog.getByRole('textbox', { name: 'Play name', exact: true }).fill(name);
+  await dialog.getByRole('button', { name: 'Save play', exact: true }).tap();
   await expect(dialog.getByRole('listitem', { name, exact: true })).toBeVisible();
 }
 

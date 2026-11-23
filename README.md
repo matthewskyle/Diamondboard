@@ -27,7 +27,8 @@ npm run e2e         # production build, then Playwright WebKit
 
 No backend and no accounts: the app is entirely client-side. The open board —
 the situation, the steps, and anything drawn — is saved in the browser and
-restored on refresh. A named list of plays is not built yet.
+restored on refresh. **My plays** saves that board under a name on this device,
+and opens, renames, duplicates, or deletes it. Nothing is sent anywhere.
 
 ## Installing it on an iPad
 
@@ -83,6 +84,9 @@ it, tap it again to take him off.
 **Clear play** drops the arrows and leaves the situation you set up standing.
 **New** starts over: default fielders, nobody on, nothing drawn.
 
+**My plays** keeps a named copy of the board you're looking at. Open puts that
+copy back on the field. The copy stays as you saved it when you keep editing.
+
 The **0.5× / 1× / 2×** button sets the pace. Each step takes 1.5 seconds at 1×.
 
 ## Layout
@@ -97,7 +101,7 @@ src/
     hitTest.ts         what a tap landed on
     path.ts            stroke smoothing and point/segment math
     plays.ts           the 150-play library — built, parked, not mounted
-  storage/        # the on-device library: the open board and, later, named plays
+  storage/        # the on-device library: the open board and named plays
   components/     # FieldSurface (static), FieldStage (pointer input), TokenLayer,
                   # MoveArrowLayer, StrokeLayer, StepBar, Toolbar, PlayControls
   hooks/          # useTween — the requestAnimationFrame transport; useAutosave

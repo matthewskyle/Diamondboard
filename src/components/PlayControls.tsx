@@ -9,6 +9,7 @@ interface Props {
   speed: PlaybackSpeed;
   onSpeedChange: (speed: PlaybackSpeed) => void;
   isPlaying: boolean;
+  onMyPlays: () => void;
 }
 
 /** Floats over the bottom-left of the field, clear of the tool bar. */
@@ -20,6 +21,7 @@ export function PlayControls({
   speed,
   onSpeedChange,
   isPlaying,
+  onMyPlays,
 }: Props) {
   // One button that steps through the speeds, so the bar stays thumb-sized.
   const nextSpeed = PLAYBACK_SPEEDS[(PLAYBACK_SPEEDS.indexOf(speed) + 1) % PLAYBACK_SPEEDS.length];
@@ -64,6 +66,15 @@ export function PlayControls({
           aria-label="Start over: clear the play and send everyone home"
         >
           New
+        </button>
+        <button
+          type="button"
+          className="pill pill-light"
+          data-testid="my-plays"
+          onClick={onMyPlays}
+          disabled={isPlaying}
+        >
+          My plays
         </button>
       </div>
     </div>

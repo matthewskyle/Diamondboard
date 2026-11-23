@@ -440,3 +440,96 @@ body {
     font-size: 0.8rem;
   }
 }
+
+/* --- My plays ---------------------------------------------------------- */
+
+.my-plays-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgb(19 24 38 / 0.45);
+}
+
+.my-plays {
+  width: min(36rem, 100%);
+  max-height: min(78dvh, 40rem);
+  overflow: auto;
+  background: var(--chalk);
+  color: var(--ink);
+  border-radius: 16px 16px 0 0;
+  padding: 0.8rem 0.8rem calc(0.8rem + env(safe-area-inset-bottom));
+  box-shadow: 0 -8px 24px rgb(0 0 0 / 0.28);
+}
+
+.my-plays-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.my-plays-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.my-plays-save,
+.my-plays-rename,
+.my-plays-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.my-plays-save {
+  margin-bottom: 0.8rem;
+}
+
+.my-plays-name {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: 1.5px solid rgb(19 24 38 / 0.22);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  /* 16px keeps iOS from zooming the field out from under the sheet. */
+  font-size: 16px;
+}
+
+.my-plays-rename .my-plays-name {
+  flex: 1 0 12rem;
+}
+
+.my-plays-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.my-plays-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgb(19 24 38 / 0.1);
+}
+
+.my-plays-play-name {
+  font-weight: 700;
+}
+
+.my-plays-empty,
+.my-plays-notice {
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
+}
