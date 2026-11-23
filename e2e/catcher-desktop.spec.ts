@@ -144,8 +144,9 @@ test.describe('390×844', () => {
   test('C and 1B walked to the bottom edge stay clear of the play dock', async ({ page }) => {
     for (const label of ['C', '1B'] as const) {
       if (label !== 'C') {
-        await page.reload();
-        await expect(page.getByTestId('field')).toBeVisible();
+        // Reload would restore the autosaved play, so start over instead.
+        await page.getByRole('button', { name: 'Start over: clear the play and send everyone home' }).click();
+        await expect(page.getByTestId('move-arrow')).toHaveCount(0);
         await waitForFieldLayout(page);
       }
       const view = await viewBoxScreenRect(page);

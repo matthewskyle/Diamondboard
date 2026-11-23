@@ -77,6 +77,27 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   const tokenMargin = TOKEN_RADIUS * tokenScaleForScale(pxPerUnit);
 
   /**
+   * ViewBox y where the play dock starts, or the bottom of the board when the
+   * dock sits below it. clampToField stops a token one radius above this, so
+   * a player walked to the bottom edge on a phone is not slid under the chips.
+   */
+  const fieldCeiling = useCallback((): number => {
+    const svg = svgRef.current;
+    const dock = svg?.parentElement?.querySelector('.play-dock');
+    if (!svg || !(dock instanceof HTMLElement)) return viewHeight;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return viewHeight;
+    const y = new DOMPoint(0, dock.getBoundingClientRect().top).matrixTransform(ctm.inverse()).y;
+    if (!Number.isFinite(y)) return viewHeight;
+    return Math.min(viewHeight, y);
+  }, [viewHeight]);
+
+  const clamp = useCallback(
+    (p: Point): Point => clampToField(p, fieldCeiling(), tokenMargin),
+    [fieldCeiling, tokenMargin],
+  );
+
+  /**
    * Where everybody stands entering the step being edited. A play is built one
    * beat at a time, so the board has to show the beat being worked on rather
    * than the top of the play.
@@ -156,10 +177,10 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
         return;
       }
       case 'addRunner':
-        dispatch({ type: 'addRunner', at: clampToField(p, viewHeight, tokenMargin) });
+        dispatch({ type: 'addRunner', at: clamp(p) });
         return;
       case 'addBall':
-        dispatch({ type: 'addBall', at: clampToField(p, viewHeight, tokenMargin) });
+        dispatch({ type: 'addBall', at: clamp(p) });
         return;
       case 'erase': {
         const token = tokenAt(placed, p, hitRadiusForScale(currentScale()));
@@ -183,12 +204,12 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
       const p = toFieldPoint(event);
       setDrag({
         ...drag,
-        at: clampToField({ x: p.x + drag.dx, y: p.y + drag.dy }, viewHeight, tokenMargin),
+        at: clamp({ x: p.x + drag.dx, y: p.y + drag.dy }),
       });
       return;
     }
     if (aim?.pointerId === event.pointerId) {
-      setAim({ ...aim, to: clampToField(toFieldPoint(event), viewHeight, tokenMargin) });
+      setAim({ ...aim, to: clamp(toFieldPoint(event)) });
       return;
     }
     if (draft?.pointerId === event.pointerId) {

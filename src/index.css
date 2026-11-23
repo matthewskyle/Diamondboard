@@ -422,6 +422,23 @@ body {
   cursor: default;
 }
 
+/* A short landscape phone lays the dock over most of the field. Rows that
+   stretch across it steal presses from the players underneath. Hug the
+   chips, and let the last runner chip wrap so it stays in the left gutter
+   instead of sitting on the left fielder. */
+@media (max-height: 420px) {
+  .setup-chips,
+  .play-controls {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .setup-chips {
+    max-width: 14rem;
+  }
+}
+
 @media (max-width: 480px) {
   .play-dock {
     bottom: 0.5rem;
