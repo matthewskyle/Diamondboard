@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   clampToField,
   hitRadiusForScale,
@@ -72,25 +72,9 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     return () => observer.disconnect();
   }, []);
 
-  const latestTokens = useRef(state.tokens);
-  useLayoutEffect(() => {
-    latestTokens.current = state.tokens;
-  });
-
   // Drawn radius, in viewBox units. On a phone the tokens are magnified, so
   // the unscaled radius would leave the circle hanging off a viewBox edge.
   const tokenMargin = TOKEN_RADIUS * tokenScaleForScale(pxPerUnit);
-
-  // A crop can strand tokens below the new bottom edge — lift them back into
-  // view rather than let them vanish on rotation.
-  useEffect(() => {
-    const bottom = viewHeight - tokenMargin;
-    const stranded = latestTokens.current.filter((t) => t.y > bottom);
-    if (stranded.length === 0) return;
-    const positions: PositionMap = {};
-    for (const token of stranded) positions[token.id] = { x: token.x, y: bottom };
-    dispatch({ type: 'setPositions', positions });
-  }, [viewHeight, tokenMargin, dispatch]);
 
   /**
    * Where everybody stands entering the step being edited. A play is built one
