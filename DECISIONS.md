@@ -277,10 +277,11 @@ about 45% larger. Landscape is not a bespoke layout and doesn't fill the screen
 — the field's natural shape leaves margins at the sides — but it is usable at a
 glance rather than a shrunken portrait board.
 
-Cropping can strand a token that was parked in the open green, so on a crop
-anything below the new bottom edge is lifted back into view. It moves through
-the same non-undoable bulk write the animation uses: rotating the iPad is not an
-edit, and shouldn't cost an undo step.
+A crop hides whatever was parked in that green; it does not move it. Token
+positions stay in world coordinates, so rotating back to portrait shows them
+where the coach put them. A drag while the board is cropped still clamps to the
+visible edge. Rotating the iPad is not an edit, and it does not join the undo
+stack.
 
 ## Touch targets
 

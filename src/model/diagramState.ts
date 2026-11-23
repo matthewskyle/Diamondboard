@@ -106,7 +106,7 @@ export type DiagramAction =
   | { type: 'removeToken'; id: string }
   | { type: 'addStroke'; points: Point[] }
   | { type: 'removeStroke'; id: string }
-  /** Bulk position write, used to rescue tokens a rotation cropped out. */
+  /** Bulk position write. Not an edit, so it does not join the undo stack. */
   | { type: 'setPositions'; positions: PositionMap }
   | { type: 'undo' }
   | { type: 'reset' };
