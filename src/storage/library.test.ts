@@ -126,6 +126,31 @@ describe('round trip', () => {
     expect(jsonClone(result.board)).toEqual(jsonClone(board));
   });
 
+  it('keeps coaching notes on their steps', () => {
+    const storage = memoryStorage();
+    let board = coachedBoard();
+    board = diagramReducer(board, { type: 'setStepNote', index: 0, note: 'SS breaks on contact.' });
+    board = diagramReducer(board, { type: 'setStepNote', index: 1, note: 'Ball to second.' });
+    expect(writeCurrentBoard(storage, board)).toBe(true);
+
+    const result = readLibrary(storage);
+    expect(result.status).toBe('restored');
+    if (result.status !== 'restored') return;
+    expect(result.board.steps.map((step) => step.note)).toEqual([
+      'SS breaks on contact.',
+      'Ball to second.',
+    ]);
+  });
+
+  it('rejects a step note that is not text', () => {
+    const board = jsonClone(highWaterBoard()) as unknown as { steps: Record<string, unknown>[] };
+    board.steps[0].note = 42;
+    const storage = memoryStorage({
+      [STORAGE_KEY]: JSON.stringify({ version: SCHEMA_VERSION, current: board, plays: [] }),
+    });
+    expect(readLibrary(storage)).toEqual({ status: 'rejected', reason: 'corrupt' });
+  });
+
   it('restores undo, so the last arrow comes back off', () => {
     const storage = memoryStorage();
     const board = coachedBoard();

@@ -9,6 +9,7 @@ import {
   positionsDuring,
   STEP_DURATION_MS,
   STEP_HOLD_SHARE,
+  stepPlayingAt,
   type PlayStep,
 } from '../steps';
 import type { Token } from '../types';
@@ -129,5 +130,27 @@ describe('playback', () => {
     expect(positionsDuring(tokens, [step('s1', {})], 0.5)).toEqual(
       arrangementBefore(tokens, [], 0),
     );
+  });
+});
+
+describe('which step is playing', () => {
+  const steps = [
+    step('s0', {}),
+    step('s1', { a: { x: 0, y: 100 } }),
+    step('s2', { b: { x: 100, y: 100 } }),
+  ];
+
+  it('names the playable step whose slot holds t, skipping empty steps', () => {
+    expect(stepPlayingAt(steps, 0)).toBe(1);
+    expect(stepPlayingAt(steps, 0.25)).toBe(1);
+    expect(stepPlayingAt(steps, 0.75)).toBe(2);
+  });
+
+  it('stays on the last step at the very end of the play', () => {
+    expect(stepPlayingAt(steps, 1)).toBe(2);
+  });
+
+  it('has nothing playing when no step moves anybody', () => {
+    expect(stepPlayingAt([step('s0', {})], 0.5)).toBe(-1);
   });
 });

@@ -297,6 +297,61 @@ describe('steps', () => {
   });
 });
 
+describe('coaching notes', () => {
+  it('starts with no note on a step', () => {
+    expect(initialState().steps[0].note).toBeUndefined();
+  });
+
+  it('writes a trimmed note on the chosen step', () => {
+    const s = diagramReducer(initialState(), {
+      type: 'setStepNote',
+      index: 0,
+      note: '  SS fields it, 2B covers the bag.  ',
+    });
+    expect(s.steps[0].note).toBe('SS fields it, 2B covers the bag.');
+  });
+
+  it('clears the note when it is left empty, so nothing is shown', () => {
+    let s = diagramReducer(initialState(), { type: 'setStepNote', index: 0, note: 'Cut it off.' });
+    s = diagramReducer(s, { type: 'setStepNote', index: 0, note: '   ' });
+    expect(s.steps[0].note).toBeUndefined();
+    expect('note' in s.steps[0]).toBe(false);
+  });
+
+  it('undoes a note back to what it was', () => {
+    let s = diagramReducer(initialState(), { type: 'setStepNote', index: 0, note: 'First.' });
+    s = diagramReducer(s, { type: 'setStepNote', index: 0, note: 'Second.' });
+    s = diagramReducer(s, { type: 'undo' });
+    expect(s.steps[0].note).toBe('First.');
+  });
+
+  it('ignores a note that is unchanged or on a step that is not there', () => {
+    const s0 = diagramReducer(initialState(), { type: 'setStepNote', index: 0, note: 'Same.' });
+    expect(diagramReducer(s0, { type: 'setStepNote', index: 0, note: ' Same. ' })).toBe(s0);
+    expect(diagramReducer(s0, { type: 'setStepNote', index: 3, note: 'Nope.' })).toBe(s0);
+    const blank = initialState();
+    expect(diagramReducer(blank, { type: 'setStepNote', index: 0, note: '' })).toBe(blank);
+  });
+
+  it('keeps each note with its own step', () => {
+    const s0 = initialState();
+    const s = run(
+      s0,
+      { type: 'setDestination', id: s0.tokens[0].id, to: { x: 500, y: 383 } },
+      { type: 'setStepNote', index: 0, note: 'Break on contact.' },
+      { type: 'addStep' },
+      { type: 'setStepNote', index: 1, note: 'Throw to second.' },
+    );
+    expect(s.steps.map((step) => step.note)).toEqual(['Break on contact.', 'Throw to second.']);
+  });
+
+  it('clears a lone note when the play is cleared', () => {
+    const s0 = diagramReducer(initialState(), { type: 'setStepNote', index: 0, note: 'Hold.' });
+    const s = diagramReducer(s0, { type: 'clearSteps' });
+    expect(s.steps[0].note).toBeUndefined();
+  });
+});
+
 describe('the board while a later step is being edited', () => {
   /** A shortstop sent to second in step 1, with step 2 open. */
   const twoSteps = () => {
