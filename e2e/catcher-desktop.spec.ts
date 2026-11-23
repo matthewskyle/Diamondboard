@@ -188,8 +188,10 @@ test.describe('iPhone 13 landscape', () => {
     expect(blocked, 'dock rows cover fielders').toEqual([]);
 
     for (const label of ['C', 'LF', 'RF'] as const) {
-      // Up and away from home, the same kind of stroke that draws an arrow on CF.
-      await dragFromCenter(page, page.getByTestId(`token-${label}`), label === 'RF' ? 60 : -70, -60);
+      // Up and into open grass. A leftward stroke from C or LF runs into the
+      // dock, and a pointerup there does not finish the arrow.
+      const dx = label === 'RF' ? -50 : 50;
+      await dragFromCenter(page, page.getByTestId(`token-${label}`), dx, -70);
     }
 
     await expect(page.getByTestId('move-arrow')).toHaveCount(3);
