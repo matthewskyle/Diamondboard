@@ -15,6 +15,54 @@ export function nextId(prefix: string): string {
   return `${prefix}-${idCounter}`;
 }
 
+const idSuffix = /-(\d+)$/;
+
+/**
+ * A restored board brings its own ids. The counter starts at zero on every
+ * load, so without this the next runner would reuse an id already on the field.
+ * The highest id can sit inside an undo entry — a step that was replaced, a
+ * token that was removed — so the walk covers the undo stack too.
+ */
+export function adoptIds(state: DiagramState): void {
+  let max = idCounter;
+  const visit = (id: string) => {
+    const match = idSuffix.exec(id);
+    if (!match) return;
+    const n = Number(match[1]);
+    if (n > max) max = n;
+  };
+  const visitSteps = (steps: readonly PlayStep[]) => {
+    for (const step of steps) {
+      visit(step.id);
+      for (const id of Object.keys(step.moves)) visit(id);
+    }
+  };
+  for (const token of state.tokens) visit(token.id);
+  for (const stroke of state.strokes) visit(stroke.id);
+  visitSteps(state.steps);
+  for (const entry of state.undoStack) {
+    switch (entry.kind) {
+      case 'move':
+      case 'removeToken':
+      case 'removeStroke':
+      case 'restoreDestination':
+        visit(entry.id);
+        break;
+      case 'addToken':
+        visit(entry.token.id);
+        visitSteps(entry.steps);
+        break;
+      case 'addStroke':
+        visit(entry.stroke.id);
+        break;
+      case 'restoreSteps':
+        visitSteps(entry.steps);
+        break;
+    }
+  }
+  idCounter = max;
+}
+
 export function defaultTokens(): Token[] {
   return FIELDER_SPOTS.map((spot) => {
     const { x, y } = defaultFielderPosition(spot);

@@ -4,7 +4,9 @@ import { PlayControls } from './components/PlayControls';
 import { SetupChips } from './components/SetupChips';
 import { StepBar } from './components/StepBar';
 import { Toolbar } from './components/Toolbar';
+import { useAutosave } from './hooks/useAutosave';
 import { diagramReducer, hasPlay, initialState } from './model/diagramState';
+import { browserLocalStorage, persistAfterLoad, readLibrary } from './storage/library';
 import { durationForPlay, hasMoves, positionsDuring } from './model/steps';
 import { type PlaybackSpeed } from './model/tween';
 import type { PositionMap, Tool } from './model/types';
@@ -21,8 +23,23 @@ import { useTween } from './hooks/useTween';
 /** How long the finished arrangement is left on screen before the board resets. */
 const HOLD_AFTER_PLAY_MS = 700;
 
+/**
+ * Synchronous, so the restored board is the first paint. A future schema or a
+ * store that throws is not written back: saving the clean board over it would
+ * destroy data this build cannot read.
+ */
+function bootBoard(): { board: ReturnType<typeof initialState>; persist: boolean } {
+  const loaded = readLibrary(browserLocalStorage());
+  return {
+    board: loaded.status === 'restored' ? loaded.board : initialState(),
+    persist: persistAfterLoad(loaded),
+  };
+}
+
 export default function App() {
-  const [state, dispatch] = useReducer(diagramReducer, undefined, initialState);
+  const [boot] = useState(bootBoard);
+  const [state, dispatch] = useReducer(diagramReducer, boot.board);
+  useAutosave(state, boot.persist);
   const [tool, setTool] = useState<Tool>('arrow');
   const [animating, setAnimating] = useState<PositionMap | null>(null);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
