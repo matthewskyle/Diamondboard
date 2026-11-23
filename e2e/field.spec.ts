@@ -83,6 +83,79 @@ test('draws an arrow, adds a step, plays, and undoes', async ({ page }) => {
   await expect(undo).toBeDisabled();
 });
 
+test('disables undo while a play is running', async ({ page }) => {
+  const play = page.getByTestId('play');
+  const undo = page.getByTestId('undo');
+  const addStep = page.getByTestId('add-step');
+  const arrow = page.getByTestId('move-arrow');
+  const caption = page.locator('.play-caption span');
+  const speed = page.getByRole('button', { name: /Playback speed/ });
+
+  await drawArrow(page);
+  await expect(page.getByTestId('step-1')).toHaveAttribute('data-movers', '1');
+  await expect(arrow).toHaveCount(1);
+
+  await addStep.tap();
+  await expect(page.getByTestId('step-2')).toHaveAttribute('aria-pressed', 'true');
+
+  const tokenId = await drawArrow(page);
+  const mover = page.getByTestId(tokenId);
+  await expect(page.getByTestId('step-2')).toHaveAttribute('data-movers', '1');
+  await expect(arrow).toHaveCount(2);
+  await expect(caption).not.toContainText('Nobody moves yet');
+  await expect(undo).toBeEnabled();
+
+  // 1×, then 2×, then 0.5× — a slow clip, so Undo can be checked while it runs.
+  await speed.tap();
+  await speed.tap();
+  await expect(speed).toHaveText('0.5×');
+
+  const origin = await mover.boundingBox();
+  if (!origin) throw new Error(`${tokenId} disappeared before Play`);
+
+  await play.tap();
+  await expect(play).toBeDisabled();
+  await expect(undo).toBeDisabled();
+
+  // Undo must not take step 2's arrow off while the original clip is still running.
+  await expect(page.getByTestId('step-2')).toHaveAttribute('data-movers', '1');
+  await expect(arrow).toHaveCount(2);
+  await expect(caption).not.toContainText('Nobody moves yet');
+  await expect(play).toBeDisabled();
+
+  await expect
+    .poll(
+      async () => {
+        const box = await mover.boundingBox();
+        if (!box) return 0;
+        return Math.hypot(box.x - origin.x, box.y - origin.y);
+      },
+      { timeout: 10_000 },
+    )
+    .toBeGreaterThan(20);
+  await expect(undo).toBeDisabled();
+  await expect(page.getByTestId('step-2')).toHaveAttribute('data-movers', '1');
+
+  await expect(play).toBeEnabled({ timeout: 15_000 });
+  await expect(undo).toBeEnabled();
+  await expect
+    .poll(
+      async () => {
+        const box = await mover.boundingBox();
+        if (!box) return 999;
+        return Math.hypot(box.x - origin.x, box.y - origin.y);
+      },
+      { timeout: 10_000 },
+    )
+    .toBeLessThan(4);
+
+  await undo.tap();
+  await expect(page.getByTestId('step-2')).toHaveAttribute('data-movers', '0');
+  await expect(arrow).toHaveCount(1);
+  await expect(caption).toContainText('Nobody moves yet');
+  await expect(play).toBeEnabled();
+});
+
 test('serves the field from the service worker after an offline reload', async ({ page, context }) => {
   await expect
     .poll(async () => page.evaluate(() => navigator.serviceWorker?.controller?.scriptURL ?? ''), {
