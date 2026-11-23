@@ -371,6 +371,20 @@ describe('undo stack', () => {
   });
 });
 
+describe('load', () => {
+  it('replaces the board in one step, so opening a play never paints the default lineup', () => {
+    const saved = diagramReducer(initialState(), {
+      type: 'addRunner',
+      at: { x: 12, y: 34 },
+      label: 'R2',
+    });
+    const open = initialState();
+    const loaded = diagramReducer(open, { type: 'load', board: saved });
+    expect(loaded).toBe(saved);
+    expect(loaded.tokens.some((token) => token.label === 'R2')).toBe(true);
+  });
+});
+
 describe('reset', () => {
   it('clears everything back to the default arrangement', () => {
     const s0 = initialState();
