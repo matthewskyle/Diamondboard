@@ -93,8 +93,19 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   }, [viewHeight]);
 
   const clamp = useCallback(
-    (p: Point): Point => clampToField(p, fieldCeiling(), tokenMargin),
-    [fieldCeiling, tokenMargin],
+    (p: Point): Point => {
+      const fitted = clampToField(p, viewHeight, tokenMargin);
+      const svg = svgRef.current;
+      const ctm = svg?.getScreenCTM();
+      if (!svg || !ctm) return fitted;
+      // The dock's box covers a short landscape screen, including grass the
+      // rows do not. Only a center that lands on a row is stopped above it.
+      const screen = new DOMPoint(fitted.x, fitted.y).matrixTransform(ctm);
+      const hit = document.elementFromPoint(screen.x, screen.y);
+      if (!hit?.closest('.play-dock')) return fitted;
+      return clampToField(p, fieldCeiling(), tokenMargin);
+    },
+    [fieldCeiling, tokenMargin, viewHeight],
   );
 
   /**

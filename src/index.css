@@ -428,7 +428,8 @@ body {
    instead of sitting on the left fielder. */
 @media (max-height: 420px) {
   .setup-chips,
-  .play-controls {
+  .play-controls,
+  .play-caption {
     align-self: flex-start;
     width: fit-content;
     max-width: 100%;
@@ -436,6 +437,12 @@ body {
 
   .setup-chips {
     max-width: 14rem;
+  }
+
+  /* The coaching line is long enough to reach the infielders. Keep it in the
+     left gutter, short of third base. */
+  .play-caption {
+    max-width: 18rem;
   }
 }
 
