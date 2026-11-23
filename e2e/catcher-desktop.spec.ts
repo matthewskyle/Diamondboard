@@ -194,6 +194,18 @@ test.describe('iPhone 13 landscape', () => {
 
     await expect(page.getByTestId('move-arrow')).toHaveCount(3);
     await expect(play).toBeEnabled();
+
+    // The dock's box covers this short screen, but the rows do not. The
+    // catcher's arrow has to end where he was dragged, not on the top edge.
+    const catcherArrow = await page.getByTestId('move-arrow').evaluateAll((nodes) => {
+      const parsed = nodes.map((node) => {
+        const nums = (node.getAttribute('d') ?? '').match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+        return { y1: nums[1] ?? 0, y2: nums[3] ?? 0 };
+      });
+      return parsed.reduce((lowest, arrow) => (arrow.y1 > lowest.y1 ? arrow : lowest));
+    });
+    expect(catcherArrow.y2, 'catcher arrow was pulled to the top of the field').toBeGreaterThan(200);
+    expect(catcherArrow.y2, 'catcher arrow did not follow the drag').toBeLessThan(catcherArrow.y1 - 40);
   });
 
   test('tapping left field does not load the bases', async ({ page }) => {
