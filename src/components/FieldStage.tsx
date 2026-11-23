@@ -77,16 +77,20 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     latestTokens.current = state.tokens;
   });
 
+  // Drawn radius, in viewBox units. On a phone the tokens are magnified, so
+  // the unscaled radius would leave the circle hanging off a viewBox edge.
+  const tokenMargin = TOKEN_RADIUS * tokenScaleForScale(pxPerUnit);
+
   // A crop can strand tokens below the new bottom edge — lift them back into
   // view rather than let them vanish on rotation.
   useEffect(() => {
-    const bottom = viewHeight - TOKEN_RADIUS;
+    const bottom = viewHeight - tokenMargin;
     const stranded = latestTokens.current.filter((t) => t.y > bottom);
     if (stranded.length === 0) return;
     const positions: PositionMap = {};
     for (const token of stranded) positions[token.id] = { x: token.x, y: bottom };
     dispatch({ type: 'setPositions', positions });
-  }, [viewHeight, dispatch]);
+  }, [viewHeight, tokenMargin, dispatch]);
 
   /**
    * Where everybody stands entering the step being edited. A play is built one
@@ -168,10 +172,10 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
         return;
       }
       case 'addRunner':
-        dispatch({ type: 'addRunner', at: clampToField(p, viewHeight) });
+        dispatch({ type: 'addRunner', at: clampToField(p, viewHeight, tokenMargin) });
         return;
       case 'addBall':
-        dispatch({ type: 'addBall', at: clampToField(p, viewHeight) });
+        dispatch({ type: 'addBall', at: clampToField(p, viewHeight, tokenMargin) });
         return;
       case 'erase': {
         const token = tokenAt(placed, p, hitRadiusForScale(currentScale()));
@@ -193,11 +197,14 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   const handlePointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     if (drag?.pointerId === event.pointerId) {
       const p = toFieldPoint(event);
-      setDrag({ ...drag, at: clampToField({ x: p.x + drag.dx, y: p.y + drag.dy }, viewHeight) });
+      setDrag({
+        ...drag,
+        at: clampToField({ x: p.x + drag.dx, y: p.y + drag.dy }, viewHeight, tokenMargin),
+      });
       return;
     }
     if (aim?.pointerId === event.pointerId) {
-      setAim({ ...aim, to: clampToField(toFieldPoint(event), viewHeight) });
+      setAim({ ...aim, to: clampToField(toFieldPoint(event), viewHeight, tokenMargin) });
       return;
     }
     if (draft?.pointerId === event.pointerId) {

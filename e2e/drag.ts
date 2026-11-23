@@ -28,7 +28,7 @@ function center(box: Box): { x: number; y: number } {
  * The viewBox and token magnification settle a frame or two after mount
  * (ResizeObserver). Dragging before that misses the player.
  */
-async function waitForFieldLayout(page: Page): Promise<void> {
+export async function waitForFieldLayout(page: Page): Promise<void> {
   const token = page.getByTestId('token-SS');
   let previous = '';
   let matches = 0;
