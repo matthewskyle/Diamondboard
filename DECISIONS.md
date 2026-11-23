@@ -310,8 +310,8 @@ and no Mac.
   zone its mask wants: maskable icons keep the art inside the middle 80% for the
   circular crop, iOS gets a little margin for its rounded-rect mask.
 
-Installing raises the expectation that work persists. The open board does —
-see below. A named list of plays does not, yet.
+Installing raises the expectation that work persists. The open board does, and
+so does a named list of plays — see below.
 
 ## The board survives a reload
 
@@ -339,8 +339,12 @@ cannot be used, and the app catches that and opens a clean board.
 The size fits. One board is nine fielders, a handful of runners, a few steps
 of coordinates, an undo stack capped at 50, and pen strokes. Thousands of
 points are still tens of kilobytes, against Safari's roughly 5 MB quota. A
-later My Plays list is the same document: named plays live in `plays`, and
-autosave rewrites `current` without dropping them. If a shelf of long ink
+named list is the same document: each entry in `plays` is
+`{ id, name, updatedAt, board }`. Saving appends a snapshot of the open board.
+Opening writes that snapshot into `current` immediately, so a reload paints it
+on the first frame instead of whatever was open before. Rename, duplicate, and
+delete change the list and leave `current` alone. Autosave still rewrites
+`current` without dropping `plays`. If a shelf of long ink
 sessions ever outgrows the quota, the `KeyValueStore` seam is where a
 different backend goes; the schema does not have to change to get there.
 
@@ -365,10 +369,8 @@ rejects the document, and the tests drive a two-step chain through that path.
 
 ## Deliberately absent
 
-No accounts, no templates, no named list of plays yet, no landscape-specific
-layout. The open board persists on the device. Saving, opening, renaming,
-duplicating, and deleting named plays is the next thing worth building, on
-the `plays` array already in this document.
+No accounts, no templates, no landscape-specific layout. The open board and the
+named plays persist on the device.
 
 The set-play library is present in the repo but not mounted; see above.
 
