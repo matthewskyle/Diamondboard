@@ -1,12 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 /**
- * Dock overlap. These tests pin the viewports where the floating play dock
- * covers a fielder, without adding a browser project: CI only installs WebKit.
+ * Dock overlap. CI installs WebKit only, so the iPhone landscape case is its
+ * own WebKit project rather than a second browser.
  *
  * - 1280×800: the step bar used to cover the catcher.
- * - 750×342: iPhone 13 landscape. The play controls cover C, and the runner
- *   chips cover LF and RF.
+ * - iPhone 13 landscape (750×342): the play controls cover C, the runner chips
+ *   cover LF and RF, and the step caption paints across the infield.
  * - 390×844: walking C or 1B onto the bottom viewBox edge parks them behind
  *   the dock. 390×844 is also the phone size where the catcher already sits
  *   clear of the dock until someone drags him down.
@@ -170,8 +170,10 @@ test.describe('390×844', () => {
   });
 });
 
-test.describe('iPhone 13 landscape 750×342', () => {
-  test.use({ viewport: { width: 750, height: 342 } });
+test.describe('iPhone 13 landscape', () => {
+  test.beforeEach(({ page: _page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone-landscape');
+  });
 
   test('the catcher and the corner outfielders are draggable from their centers', async ({ page }) => {
     expect(page.viewportSize()).toEqual({ width: 750, height: 342 });
@@ -192,5 +194,25 @@ test.describe('iPhone 13 landscape 750×342', () => {
 
     await expect(page.getByTestId('move-arrow')).toHaveCount(3);
     await expect(play).toBeEnabled();
+  });
+
+  test('tapping left field does not load the bases', async ({ page }) => {
+    const box = await page.getByTestId('token-LF').boundingBox();
+    if (!box) throw new Error('LF has no bounding box');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(page.getByRole('button', { name: 'Load the bases' })).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.token-runner')).toHaveCount(0);
+  });
+
+  test('the step caption does not cover the infield', async ({ page }) => {
+    const caption = await page.locator('.play-caption').boundingBox();
+    if (!caption) throw new Error('step caption has no bounding box');
+    const covered: string[] = [];
+    for (const label of ['SS', '2B', '3B', '1B'] as const) {
+      const circle = await page.getByTestId(`token-${label}`).locator('circle.tk-fielder').boundingBox();
+      if (!circle) throw new Error(`${label} circle has no bounding box`);
+      if (overlaps(caption, circle)) covered.push(label);
+    }
+    expect(covered, 'caption covers the infield').toEqual([]);
   });
 });
