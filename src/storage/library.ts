@@ -5,8 +5,8 @@ import type { DiagramState, Stroke, Token, UndoEntry } from '../model/types';
 
 /**
  * The on-device library. One JSON document holds the board that is open and
- * the named plays a later My Plays list will add beside it. Version 1 is the
- * first schema; older documents walk `migrations` one version at a time.
+ * the named plays beside it. Version 1 is the first schema; older documents
+ * walk `migrations` one version at a time.
  *
  * localStorage, not IndexedDB: the read is synchronous, so the first paint is
  * already the restored board, and a store that throws fails immediately
@@ -30,7 +30,7 @@ export interface LibraryDocument {
   version: number;
   /** The board open right now. Autosave rewrites this and leaves `plays` alone. */
   current: DiagramState;
-  /** Named plays. Empty until My Plays; autosave must not drop entries it finds. */
+  /** Named plays. Autosave rewrites `current` and must not drop entries it finds. */
   plays: SavedPlay[];
 }
 
@@ -139,6 +139,146 @@ export function persistAfterLoad(result: ReadResult): boolean {
   return result.reason === 'corrupt';
 }
 
+/** What the My Plays list shows. The board itself stays in the document until opened. */
+export interface PlaySummary {
+  id: string;
+  name: string;
+  updatedAt: number;
+}
+
+export interface SavePlayOptions {
+  id?: string;
+  now?: number;
+}
+
+export type SavePlayResult =
+  | { ok: true; play: SavedPlay }
+  | { ok: false; reason: 'empty-name' | 'future' | 'unavailable' };
+
+export type OpenPlayResult =
+  | { ok: true; board: DiagramState }
+  | { ok: false; reason: 'missing' | 'corrupt' | 'future' | 'unavailable' };
+
+export type RenamePlayResult =
+  | { ok: true; play: SavedPlay }
+  | { ok: false; reason: 'empty-name' | 'missing' | 'corrupt' | 'future' | 'unavailable' };
+
+export type DuplicatePlayResult =
+  | { ok: true; play: SavedPlay }
+  | { ok: false; reason: 'missing' | 'corrupt' | 'future' | 'unavailable' };
+
+export type DeletePlayResult = { ok: true } | { ok: false; reason: 'missing' | 'corrupt' | 'future' | 'unavailable' };
+
+export type ListPlaysResult =
+  | { ok: true; plays: PlaySummary[] }
+  | { ok: false; reason: 'corrupt' | 'future' | 'unavailable' };
+
+/**
+ * Append a named snapshot of the open board. A corrupt document is replaced,
+ * same as autosave: it cannot be read by any version. A future document is
+ * left byte for byte.
+ */
+export function savePlay(
+  storage: KeyValueStore,
+  board: DiagramState,
+  name: string,
+  options?: SavePlayOptions,
+): SavePlayResult {
+  const cleaned = cleanName(name);
+  if (!cleaned) return { ok: false, reason: 'empty-name' };
+  const doc = readDocument(storage);
+  if (doc.kind === 'future' || doc.kind === 'unavailable') return { ok: false, reason: doc.kind };
+  const play: SavedPlay = {
+    id: options?.id ?? newPlayId(),
+    name: cleaned,
+    updatedAt: options?.now ?? Date.now(),
+    board: cloneBoard(board),
+  };
+  const plays = doc.kind === 'ready' ? [...doc.plays, play] : [play];
+  if (!commitDocument(storage, cloneBoard(board), plays)) return { ok: false, reason: 'unavailable' };
+  return { ok: true, play };
+}
+
+export function listPlays(storage: KeyValueStore): ListPlaysResult {
+  const doc = readDocument(storage);
+  if (doc.kind === 'empty') return { ok: true, plays: [] };
+  if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
+  return {
+    ok: true,
+    plays: doc.plays.map((play) => ({ id: play.id, name: play.name, updatedAt: play.updatedAt })),
+  };
+}
+
+/**
+ * Hand the play back and make it `current` in the same write. The next reload
+ * paints `current` on the first frame, so opening has to land there before
+ * the autosave debounce or a refresh would show the previous board.
+ */
+export function openPlay(storage: KeyValueStore, id: string): OpenPlayResult {
+  const doc = readDocument(storage);
+  if (doc.kind === 'empty') return { ok: false, reason: 'missing' };
+  if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
+  const play = doc.plays.find((item) => item.id === id);
+  if (!play) return { ok: false, reason: 'missing' };
+  const board = cloneBoard(play.board);
+  if (!commitDocument(storage, cloneBoard(board), doc.plays)) return { ok: false, reason: 'unavailable' };
+  adoptIds(board);
+  return { ok: true, board };
+}
+
+export function renamePlay(
+  storage: KeyValueStore,
+  id: string,
+  name: string,
+  options?: { now?: number },
+): RenamePlayResult {
+  const cleaned = cleanName(name);
+  if (!cleaned) return { ok: false, reason: 'empty-name' };
+  const doc = readDocument(storage);
+  if (doc.kind === 'empty') return { ok: false, reason: 'missing' };
+  if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
+  const index = doc.plays.findIndex((play) => play.id === id);
+  if (index < 0) return { ok: false, reason: 'missing' };
+  const plays = doc.plays.map((play, i) =>
+    i === index ? { ...play, name: cleaned, updatedAt: options?.now ?? Date.now() } : play,
+  );
+  if (!commitDocument(storage, doc.current, plays)) return { ok: false, reason: 'unavailable' };
+  return { ok: true, play: plays[index] };
+}
+
+export function duplicatePlay(
+  storage: KeyValueStore,
+  id: string,
+  options?: SavePlayOptions,
+): DuplicatePlayResult {
+  const doc = readDocument(storage);
+  if (doc.kind === 'empty') return { ok: false, reason: 'missing' };
+  if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
+  const index = doc.plays.findIndex((play) => play.id === id);
+  if (index < 0) return { ok: false, reason: 'missing' };
+  const source = doc.plays[index];
+  const play: SavedPlay = {
+    id: options?.id ?? newPlayId(),
+    name: `${source.name} copy`,
+    updatedAt: options?.now ?? Date.now(),
+    board: cloneBoard(source.board),
+  };
+  const plays = doc.plays.slice();
+  plays.splice(index + 1, 0, play);
+  if (!commitDocument(storage, doc.current, plays)) return { ok: false, reason: 'unavailable' };
+  return { ok: true, play };
+}
+
+export function deletePlay(storage: KeyValueStore, id: string): DeletePlayResult {
+  const doc = readDocument(storage);
+  if (doc.kind === 'empty') return { ok: false, reason: 'missing' };
+  if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
+  if (!doc.plays.some((play) => play.id === id)) return { ok: false, reason: 'missing' };
+  const plays = doc.plays.filter((play) => play.id !== id);
+  if (!commitDocument(storage, doc.current, plays)) return { ok: false, reason: 'unavailable' };
+  return { ok: true };
+}
+
 export interface Autosave {
   schedule(board: DiagramState): void;
   /** Write now. A reload or a backgrounded app should not wait out the debounce. */
@@ -211,11 +351,70 @@ function playsFrom(raw: string | null): SavedPlay[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed) || !Array.isArray(parsed.plays)) return [];
-    return parsed.plays.filter(isSavedPlay);
+    if (!isRecord(parsed)) return [];
+    return validPlays(parsed.plays);
   } catch {
     return [];
   }
+}
+
+type ReadDocument =
+  | { kind: 'ready'; current: DiagramState; plays: SavedPlay[] }
+  | { kind: 'empty' }
+  | { kind: 'future' }
+  | { kind: 'corrupt' }
+  | { kind: 'unavailable' };
+
+/** The document when this build can read it. A bad `plays` list is an empty shelf, not a failed read. */
+function readDocument(storage: KeyValueStore): ReadDocument {
+  let raw: string | null;
+  try {
+    raw = storage.getItem(STORAGE_KEY);
+  } catch {
+    return { kind: 'unavailable' };
+  }
+  if (raw === null) return { kind: 'empty' };
+  if (isFutureDocument(raw)) return { kind: 'future' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { kind: 'corrupt' };
+  }
+  if (!isRecord(parsed) || !isInteger(parsed.version) || parsed.version < 1 || parsed.version > SCHEMA_VERSION) {
+    return { kind: 'corrupt' };
+  }
+  const current = parseBoard(parsed.current);
+  if (!current) return { kind: 'corrupt' };
+  return { kind: 'ready', current, plays: validPlays(parsed.plays) };
+}
+
+function validPlays(value: unknown): SavedPlay[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isSavedPlay);
+}
+
+function commitDocument(storage: KeyValueStore, current: DiagramState, plays: SavedPlay[]): boolean {
+  try {
+    if (isFutureDocument(storage.getItem(STORAGE_KEY))) return false;
+    storage.setItem(STORAGE_KEY, JSON.stringify({ version: SCHEMA_VERSION, current, plays }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function cloneBoard(board: DiagramState): DiagramState {
+  return JSON.parse(JSON.stringify(board)) as DiagramState;
+}
+
+function cleanName(name: string): string | null {
+  const trimmed = name.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function newPlayId(): string {
+  return `play-${crypto.randomUUID()}`;
 }
 
 function isSavedPlay(value: unknown): value is SavedPlay {

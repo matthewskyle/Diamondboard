@@ -109,7 +109,12 @@ export type DiagramAction =
   /** Bulk position write, used to rescue tokens a rotation cropped out. */
   | { type: 'setPositions'; positions: PositionMap }
   | { type: 'undo' }
-  | { type: 'reset' };
+  | { type: 'reset' }
+  /**
+   * Swap in a saved play. The board arrives whole, so the screen never paints
+   * the default lineup on the way.
+   */
+  | { type: 'load'; board: DiagramState };
 
 export function diagramReducer(state: DiagramState, action: DiagramAction): DiagramState {
   switch (action.type) {
@@ -286,6 +291,9 @@ export function diagramReducer(state: DiagramState, action: DiagramAction): Diag
 
     case 'reset':
       return initialState();
+
+    case 'load':
+      return action.board;
 
     default:
       return state;
