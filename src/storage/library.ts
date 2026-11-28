@@ -32,6 +32,14 @@ export interface LibraryDocument {
   current: DiagramState;
   /** Named plays. Autosave rewrites `current` and must not drop entries it finds. */
   plays: SavedPlay[];
+  /** Optional so existing on-device libraries work without a migration. */
+  practice?: PracticeQueue;
+}
+
+export interface PracticeQueue {
+  name: string;
+  playIds: string[];
+  activeIndex: number | null;
 }
 
 export interface KeyValueStore {
@@ -124,7 +132,7 @@ export function writeCurrentBoard(storage: KeyValueStore, board: DiagramState): 
     const document: LibraryDocument = {
       version: SCHEMA_VERSION,
       current: board,
-      plays: playsFrom(existing),
+      ...libraryItemsFrom(existing),
     };
     storage.setItem(STORAGE_KEY, JSON.stringify(document));
     return true;
@@ -195,7 +203,8 @@ export function savePlay(
     board: cloneBoard(board),
   };
   const plays = doc.kind === 'ready' ? [...doc.plays, play] : [play];
-  if (!commitDocument(storage, cloneBoard(board), plays)) return { ok: false, reason: 'unavailable' };
+  const practice = doc.kind === 'ready' ? doc.practice : undefined;
+  if (!commitDocument(storage, cloneBoard(board), plays, practice)) return { ok: false, reason: 'unavailable' };
   return { ok: true, play };
 }
 
@@ -221,7 +230,9 @@ export function openPlay(storage: KeyValueStore, id: string): OpenPlayResult {
   const play = doc.plays.find((item) => item.id === id);
   if (!play) return { ok: false, reason: 'missing' };
   const board = cloneBoard(play.board);
-  if (!commitDocument(storage, cloneBoard(board), doc.plays)) return { ok: false, reason: 'unavailable' };
+  // Opening from My Plays leaves the rundown intact and ends its active session.
+  const practice = doc.practice && { ...doc.practice, activeIndex: null };
+  if (!commitDocument(storage, cloneBoard(board), doc.plays, practice)) return { ok: false, reason: 'unavailable' };
   adoptIds(board);
   return { ok: true, board };
 }
@@ -242,7 +253,7 @@ export function renamePlay(
   const plays = doc.plays.map((play, i) =>
     i === index ? { ...play, name: cleaned, updatedAt: options?.now ?? Date.now() } : play,
   );
-  if (!commitDocument(storage, doc.current, plays)) return { ok: false, reason: 'unavailable' };
+  if (!commitDocument(storage, doc.current, plays, doc.practice)) return { ok: false, reason: 'unavailable' };
   return { ok: true, play: plays[index] };
 }
 
@@ -265,7 +276,7 @@ export function duplicatePlay(
   };
   const plays = doc.plays.slice();
   plays.splice(index + 1, 0, play);
-  if (!commitDocument(storage, doc.current, plays)) return { ok: false, reason: 'unavailable' };
+  if (!commitDocument(storage, doc.current, plays, doc.practice)) return { ok: false, reason: 'unavailable' };
   return { ok: true, play };
 }
 
@@ -275,8 +286,54 @@ export function deletePlay(storage: KeyValueStore, id: string): DeletePlayResult
   if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
   if (!doc.plays.some((play) => play.id === id)) return { ok: false, reason: 'missing' };
   const plays = doc.plays.filter((play) => play.id !== id);
-  if (!commitDocument(storage, doc.current, plays)) return { ok: false, reason: 'unavailable' };
+  if (!commitDocument(storage, doc.current, plays, practiceFrom(doc.practice, plays))) {
+    return { ok: false, reason: 'unavailable' };
+  }
   return { ok: true };
+}
+
+type PracticeResult =
+  | { ok: true; queue: PracticeQueue }
+  | { ok: false; reason: 'empty-name' | 'future' | 'unavailable' };
+
+export function readPracticeQueue(storage: KeyValueStore): PracticeResult {
+  const doc = readDocument(storage);
+  if (doc.kind === 'future' || doc.kind === 'unavailable') return { ok: false, reason: doc.kind };
+  const queue = doc.kind === 'ready' ? doc.practice : undefined;
+  return { ok: true, queue: queue ?? { name: 'Practice', playIds: [], activeIndex: null } };
+}
+
+export function writePracticeQueue(
+  storage: KeyValueStore,
+  board: DiagramState,
+  draft: PracticeQueue,
+): PracticeResult {
+  const name = cleanName(draft.name);
+  if (!name) return { ok: false, reason: 'empty-name' };
+  const doc = readDocument(storage);
+  if (doc.kind === 'future' || doc.kind === 'unavailable') return { ok: false, reason: doc.kind };
+  const plays = doc.kind === 'ready' ? doc.plays : [];
+  const queue = retainSavedEntries({ ...draft, name }, plays);
+  if (!commitDocument(storage, board, plays, queue)) return { ok: false, reason: 'unavailable' };
+  return { ok: true, queue };
+}
+
+export function openPracticePlay(
+  storage: KeyValueStore,
+  index: number,
+): { ok: true; board: DiagramState; queue: PracticeQueue } | Extract<OpenPlayResult, { ok: false }> {
+  const doc = readDocument(storage);
+  if (doc.kind === 'empty') return { ok: false, reason: 'missing' };
+  if (doc.kind !== 'ready') return { ok: false, reason: doc.kind };
+  const id = doc.practice?.playIds[index];
+  const play = doc.plays.find((entry) => entry.id === id);
+  if (!doc.practice || !play) return { ok: false, reason: 'missing' };
+  const queue = { ...doc.practice, activeIndex: index };
+  const board = { ...cloneBoard(play.board), activeStep: 0 };
+  // Keep the open board and the queue position together across reload or write failure.
+  if (!commitDocument(storage, board, doc.plays, queue)) return { ok: false, reason: 'unavailable' };
+  adoptIds(board);
+  return { ok: true, board, queue };
 }
 
 export interface Autosave {
@@ -347,19 +404,20 @@ function isFutureDocument(raw: string | null): boolean {
   }
 }
 
-function playsFrom(raw: string | null): SavedPlay[] {
-  if (!raw) return [];
+function libraryItemsFrom(raw: string | null): Pick<LibraryDocument, 'plays' | 'practice'> {
+  if (!raw) return { plays: [] };
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed)) return [];
-    return validPlays(parsed.plays);
+    if (!isRecord(parsed)) return { plays: [] };
+    const plays = validPlays(parsed.plays);
+    return { plays, practice: practiceFrom(parsed.practice, plays) };
   } catch {
-    return [];
+    return { plays: [] };
   }
 }
 
 type ReadDocument =
-  | { kind: 'ready'; current: DiagramState; plays: SavedPlay[] }
+  | { kind: 'ready'; current: DiagramState; plays: SavedPlay[]; practice?: PracticeQueue }
   | { kind: 'empty' }
   | { kind: 'future' }
   | { kind: 'corrupt' }
@@ -386,7 +444,8 @@ function readDocument(storage: KeyValueStore): ReadDocument {
   }
   const current = parseBoard(parsed.current);
   if (!current) return { kind: 'corrupt' };
-  return { kind: 'ready', current, plays: validPlays(parsed.plays) };
+  const plays = validPlays(parsed.plays);
+  return { kind: 'ready', current, plays, practice: practiceFrom(parsed.practice, plays) };
 }
 
 function validPlays(value: unknown): SavedPlay[] {
@@ -394,10 +453,35 @@ function validPlays(value: unknown): SavedPlay[] {
   return value.filter(isSavedPlay);
 }
 
-function commitDocument(storage: KeyValueStore, current: DiagramState, plays: SavedPlay[]): boolean {
+function practiceFrom(value: unknown, plays: SavedPlay[]): PracticeQueue | undefined {
+  if (!isRecord(value) || typeof value.name !== 'string' || !Array.isArray(value.playIds)) return;
+  const name = cleanName(value.name);
+  if (!name || !value.playIds.every(isId)) return;
+  const activeIndex = isIndex(value.activeIndex) ? value.activeIndex : null;
+  return retainSavedEntries({ name, playIds: value.playIds, activeIndex }, plays);
+}
+
+function retainSavedEntries(queue: PracticeQueue, plays: SavedPlay[]): PracticeQueue {
+  const savedIds = new Set(plays.map((play) => play.id));
+  const playIds: string[] = [];
+  let activeIndex: number | null = null;
+  for (const [index, id] of queue.playIds.entries()) {
+    if (!savedIds.has(id)) continue;
+    if (index === queue.activeIndex) activeIndex = playIds.length;
+    playIds.push(id);
+  }
+  return { name: queue.name, playIds, activeIndex };
+}
+
+function commitDocument(
+  storage: KeyValueStore,
+  current: DiagramState,
+  plays: SavedPlay[],
+  practice?: PracticeQueue,
+): boolean {
   try {
     if (isFutureDocument(storage.getItem(STORAGE_KEY))) return false;
-    storage.setItem(STORAGE_KEY, JSON.stringify({ version: SCHEMA_VERSION, current, plays }));
+    storage.setItem(STORAGE_KEY, JSON.stringify({ version: SCHEMA_VERSION, current, plays, practice }));
     return true;
   } catch {
     return false;

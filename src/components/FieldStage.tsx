@@ -35,6 +35,7 @@ interface Props {
 interface AimState {
   pointerId: number;
   tokenId: string;
+  start: Point;
   from: Point;
   to: Point;
 }
@@ -82,7 +83,6 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
   // Drawn radius, in viewBox units. On a phone the tokens are magnified, so
   // the unscaled radius would leave the circle hanging off a viewBox edge.
   const tokenMargin = TOKEN_RADIUS * tokenScaleForScale(pxPerUnit);
-  const clamp = (point: Point) => clampToField(point, viewHeight, tokenMargin, infield);
 
   /**
    * ViewBox y where the play dock starts, or the bottom of the board when the
@@ -102,7 +102,8 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
 
   const clamp = useCallback(
     (p: Point): Point => {
-      const fitted = clampToField(p, viewHeight, tokenMargin);
+      const fitted = clampToField(p, viewHeight, tokenMargin, infield);
+      if (infield) return fitted;
       const svg = svgRef.current;
       const ctm = svg?.getScreenCTM();
       if (!svg || !ctm) return fitted;
@@ -122,7 +123,7 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
       }
       return clampToField(p, fieldCeiling(), tokenMargin);
     },
-    [fieldCeiling, tokenMargin, viewHeight],
+    [fieldCeiling, infield, tokenMargin, viewHeight],
   );
 
   /**
@@ -164,6 +165,8 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
    * drag costs everything.
    */
   const capture = (event: React.PointerEvent<SVGSVGElement>) => {
+    // Keep a field drag from starting WebKit's native text drag over the dock.
+    event.preventDefault();
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -190,6 +193,7 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
         setAim({
           pointerId: event.pointerId,
           tokenId: token.id,
+          start: p,
           from: { x: token.x, y: token.y },
           to: { x: token.x, y: token.y },
         });
@@ -254,8 +258,12 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
     if (aim?.pointerId === event.pointerId) {
-      const reach = Math.hypot(aim.to.x - aim.from.x, aim.to.y - aim.from.y);
-      if (reach < MIN_ARROW_LENGTH) {
+      // WebKit can deliver the release before React paints the final drag preview.
+      const release = toFieldPoint(event);
+      const to = clamp(release);
+      const travel = Math.hypot(release.x - aim.start.x, release.y - aim.start.y);
+      const reach = Math.hypot(to.x - aim.from.x, to.y - aim.from.y);
+      if (travel < MIN_ARROW_LENGTH || reach < MIN_ARROW_LENGTH) {
         // A tap rather than a drag: take this step's arrow back off.
         dispatch({ type: 'clearDestination', id: aim.tokenId });
       } else {
@@ -265,7 +273,7 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
           // Aimed at a bag or a teammate, land on it exactly.
           to: snapToTarget(
             placed.filter((t) => t.id !== aim.tokenId),
-            aim.to,
+            to,
             hitRadiusForScale(currentScale()),
           ),
         });
@@ -304,7 +312,7 @@ export function FieldStage({ state, dispatch, tool, animating, infield, readOnly
         ? `${INFIELD_VIEW.x} ${INFIELD_VIEW.y} ${INFIELD_VIEW.width} ${INFIELD_VIEW.height}`
         : viewBoxAttr(viewHeight)}
       preserveAspectRatio="xMidYMid meet"
-      role="application"
+      role={readOnly ? 'img' : 'application'}
       aria-label="Baseball field diagram"
       data-testid="field"
       onPointerDown={readOnly ? undefined : handlePointerDown}
