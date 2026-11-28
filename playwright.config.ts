@@ -44,5 +44,12 @@ export default defineConfig({
       name: 'iphone',
       use: { ...devices['iPhone 13'], browserName: 'webkit', hasTouch: true },
     },
+    {
+      // The dock covers most of this short screen, so the portrait smoke tests
+      // are not the check. This project runs the landscape fielder cases.
+      name: 'iphone-landscape',
+      testMatch: /catcher-desktop\.spec\.ts/,
+      use: { ...devices['iPhone 13 landscape'], browserName: 'webkit', hasTouch: true },
+    },
   ],
 });

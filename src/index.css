@@ -361,8 +361,13 @@ body {
 .step-bar {
   display: flex;
   align-items: center;
+  /* The dock stretches its rows across the field. This one must not: at a
+     short wide window that empty hit target sits on the catcher. */
+  align-self: flex-start;
   flex-wrap: wrap;
   gap: 0.3rem;
+  width: fit-content;
+  max-width: 100%;
   padding: 0 calc(0.7rem + env(safe-area-inset-left));
 }
 
@@ -461,6 +466,42 @@ body {
 .tool-button:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+/* A short landscape phone lays the dock over most of the field. Rows that
+   stretch across it steal presses from the players underneath. Hug the
+   chips, and let the last runner chip wrap so it stays in the left gutter
+   instead of sitting on the left fielder. */
+@media (max-height: 420px) {
+  .setup-chips,
+  .play-controls,
+  .play-caption {
+    align-self: flex-start;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .setup-chips {
+    max-width: 14rem;
+  }
+
+  /* My plays joins this row. At full padding the row reaches the catcher,
+     so tighten it instead of wrapping onto the chips. */
+  .play-controls,
+  .play-controls .pill-group {
+    gap: 0.25rem;
+  }
+
+  .play-controls .pill {
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+  }
+
+  /* The coaching line is long enough to reach the infielders. Keep it in the
+     left gutter, short of third base. */
+  .play-caption {
+    max-width: 18rem;
+  }
 }
 
 @media (max-width: 480px) {
