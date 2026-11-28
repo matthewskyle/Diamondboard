@@ -9,7 +9,7 @@ async function savePlay(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Close', exact: true }).tap();
 }
 
-test('edits an ordered practice queue and advances between saved plays after an offline relaunch', async ({ page, context }) => {
+test('edits an ordered practice queue and advances between saved plays after an offline relaunch', async ({ page, context }, info) => {
   await page.goto('/');
   const first = page.getByRole('button', { name: 'Runner on 1st base' });
   const second = page.getByRole('button', { name: 'Runner on 2nd base' });
@@ -55,11 +55,15 @@ test('edits an ordered practice queue and advances between saved plays after an 
   await expect(page.getByTestId('play')).toBeEnabled();
   await expect(page.getByTestId('play')).toHaveAccessibleName('Play');
 
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => undefined));
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller?.state)).toBe('activated');
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByTestId('token-R1')).toBeVisible();
   await expect(page.getByRole('status', { name: 'Practice position' })).toHaveText('2 / 3');
+  if (info.project.name === 'iphone') {
+    const { width, height } = page.viewportSize()!;
+    await page.setViewportSize({ width: height, height: width });
+  }
   await next.tap();
   await expect(page.getByTestId('token-R1')).toHaveCount(0);
   await expect(next).toBeDisabled();
@@ -68,4 +72,24 @@ test('edits an ordered practice queue and advances between saved plays after an 
   await practice.tap();
   await expect(dialog.getByRole('textbox', { name: 'Queue name' })).toHaveValue('Tuesday practice');
   await expect(entries).toHaveCount(3);
+  await dialog.getByRole('button', { name: 'Close' }).tap();
+  await page.getByTestId('my-plays').tap();
+  await page.getByRole('button', { name: 'Open Empty bases' }).tap();
+  await expect(page.getByTestId('token-R1')).toHaveCount(0);
+  await expect(next).toHaveCount(0);
+  await practice.tap();
+  await expect(entries).toHaveCount(3);
+  await expect(dialog.getByRole('button', { name: 'Start practice' })).toBeVisible();
+});
+
+test('the practice queue takes keyboard focus and Escape returns it to the board', async ({ page }) => {
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Practice queue', exact: true });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Practice queue' });
+  await expect(dialog.getByRole('button', { name: 'Close' })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
 });

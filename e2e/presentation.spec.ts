@@ -1,7 +1,7 @@
 ﻿import { expect, test } from '@playwright/test';
 import { drawArrow } from './drag';
 
-test('presentation shows the current coaching note and restores the editor at the taught step', async ({ page }) => {
+test('presentation shows the current coaching note and restores the editor at the taught step', async ({ page }, info) => {
   await page.goto('/');
   const mover = page.getByTestId(await drawArrow(page));
   await page.getByTestId('add-step').tap();
@@ -22,6 +22,12 @@ test('presentation shows the current coaching note and restores the editor at th
   const field = page.getByTestId('field');
   const teachingField = await field.boundingBox();
   expect(teachingField!.height).toBeGreaterThan(editorField!.height - 85);
+  if (info.project.name === 'iphone') {
+    const { width, height } = page.viewportSize()!;
+    await page.setViewportSize({ width: height, height: width });
+    await expect(field).toHaveAttribute('viewBox', '0 0 1000 780');
+    await expect(note).toHaveText('Cover second on the throw.');
+  }
 
   const next = page.getByRole('button', { name: 'Next step' });
   const previous = page.getByRole('button', { name: 'Previous step' });
