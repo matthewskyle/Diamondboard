@@ -81,7 +81,9 @@ async function dragFromCenter(page: Page, token: Locator, dx: number, dy: number
   const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
+  await expect(page.locator('.fx-move-aiming')).toHaveCount(1);
   await page.mouse.move(start.x + dx, start.y + dy, { steps: 24 });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   await page.mouse.up();
 }
 

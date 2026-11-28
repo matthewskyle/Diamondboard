@@ -71,8 +71,9 @@ describe('the practice queue', () => {
   it('keeps queue order and the current play across autosaves and saved-play edits', () => {
     const storage = memoryStorage();
     const board = runnerBoard();
+    const cutoffs = initialState();
     savePlay(storage, board, 'Bunts', { id: 'bunts' });
-    savePlay(storage, initialState(), 'Cutoffs', { id: 'cutoffs' });
+    savePlay(storage, cutoffs, 'Cutoffs', { id: 'cutoffs' });
     expect(writePracticeQueue(storage, board, {
       name: '  Tuesday  ',
       playIds: ['bunts', 'cutoffs', 'bunts'],
@@ -80,7 +81,7 @@ describe('the practice queue', () => {
     })).toMatchObject({ ok: true, queue: { name: 'Tuesday' } });
 
     expect(openPracticePlay(storage, 1)).toMatchObject({ ok: true, queue: { activeIndex: 1 } });
-    expect(readLibrary(storage)).toMatchObject({ status: 'restored', board: initialState() });
+    expect(readLibrary(storage)).toMatchObject({ status: 'restored', board: cutoffs });
     writeCurrentBoard(storage, board);
     renamePlay(storage, 'cutoffs', 'Relay');
     duplicatePlay(storage, 'cutoffs', { id: 'relay-copy' });
