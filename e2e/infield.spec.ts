@@ -60,3 +60,29 @@ test('the close-up remains usable when a phone rotates to landscape', async ({ p
   await page.getByRole('button', { name: 'Infield view' }).tap();
   await expect(field).toHaveAttribute('viewBox', '0 0 1000 780');
 });
+
+test('a long note on a short phone leaves room for the close-up and Play', async ({ page }, info) => {
+  test.skip(info.project.name !== 'iphone', 'uses a short phone viewport');
+  await page.setViewportSize({ width: 390, height: 664 });
+  await page.goto('/');
+  await drawArrow(page);
+  const addStep = page.getByTestId('add-step');
+  for (let step = 2; step <= 5; step++) await addStep.tap();
+  await page.getByTestId('step-note-edit').tap();
+  const note = 'Cover the bag as soon as the pitcher breaks. '.repeat(6).trim();
+  await page.getByTestId('step-note-input').fill(note);
+  await page.getByTestId('step-note-done').tap();
+  await expect(page.getByTestId('step-note')).toHaveText(note);
+
+  const field = page.getByTestId('field');
+  const scale = () => field.evaluate((node) => (node as SVGSVGElement).getScreenCTM()!.a);
+  const fullScale = await scale();
+  await page.getByRole('button', { name: 'Infield view' }).tap();
+  await expect.poll(scale).toBeGreaterThan(fullScale * 1.15);
+  const play = page.getByTestId('play');
+  await expect(play).toBeInViewport({ ratio: 1 });
+  await addStep.tap();
+  await expect(page.getByTestId('step-6')).toHaveAttribute('aria-pressed', 'true');
+  await play.tap();
+  await expect(page.getByRole('button', { name: 'Pause playback' })).toBeVisible();
+});
