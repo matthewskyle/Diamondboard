@@ -18,6 +18,9 @@ import { MoveArrowLayer } from './MoveArrowLayer';
 import { StrokeLayer } from './StrokeLayer';
 import { TokenLayer } from './TokenLayer';
 
+/** Must match the short-screen `@media` block in index.css that slims the dock rows. */
+const SHORT_SCREEN_QUERY = '(max-height: 420px)';
+
 interface Props {
   state: DiagramState;
   dispatch: (action: DiagramAction) => void;
@@ -98,11 +101,20 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
       const svg = svgRef.current;
       const ctm = svg?.getScreenCTM();
       if (!svg || !ctm) return fitted;
-      // The dock's box covers a short landscape screen, including grass the
-      // rows do not. Only a center that lands on a row is stopped above it.
       const screen = new DOMPoint(fitted.x, fitted.y).matrixTransform(ctm);
-      const hit = document.elementFromPoint(screen.x, screen.y);
-      if (!hit?.closest('.play-dock')) return fitted;
+      const dock = svg.parentElement?.querySelector('.play-dock');
+      if (!(dock instanceof HTMLElement)) return fitted;
+      if (window.matchMedia(SHORT_SCREEN_QUERY).matches) {
+        // The dock's box covers a short landscape screen, including grass the
+        // rows do not. Only a center that lands on a row is stopped above it.
+        const hit = document.elementFromPoint(screen.x, screen.y);
+        if (!hit?.closest('.play-dock')) return fitted;
+      } else {
+        // Elsewhere the rows stretch across the board as one band. Its caption
+        // takes no presses, so test the band's box rather than what is hit.
+        const band = dock.getBoundingClientRect();
+        if (screen.y < band.top || screen.x < band.left || screen.x > band.right) return fitted;
+      }
       return clampToField(p, fieldCeiling(), tokenMargin);
     },
     [fieldCeiling, tokenMargin, viewHeight],

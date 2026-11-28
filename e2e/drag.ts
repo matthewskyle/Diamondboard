@@ -107,7 +107,9 @@ export async function drawArrow(page: Page): Promise<string> {
 
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
+    await expect(page.locator('.fx-move-aiming')).toHaveCount(1);
     await page.mouse.move(end.x, end.y, { steps: 24 });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
     await page.mouse.up();
     return testId;
   }

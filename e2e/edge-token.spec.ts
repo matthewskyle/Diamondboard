@@ -61,7 +61,9 @@ async function dragToken(page: Page, testId: string, to: { x: number; y: number 
   const from = center(box);
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
+  await expect(page.locator('.fx-move-aiming')).toHaveCount(1);
   await page.mouse.move(to.x, to.y, { steps: 24 });
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
   await page.mouse.up();
 }
 

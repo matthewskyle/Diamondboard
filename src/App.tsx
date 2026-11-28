@@ -20,7 +20,7 @@ import {
   savePlay,
   type PlaySummary,
 } from './storage/library';
-import { durationForPlay, hasMoves, positionsDuring, stepPlayingAt } from './model/steps';
+import { durationForPlay, hasMoves, playableSteps, positionsDuring, stepPlayingAt } from './model/steps';
 import { type PlaybackSpeed } from './model/tween';
 import type { PositionMap, Tool } from './model/types';
 import {
@@ -77,6 +77,9 @@ export default function App() {
   const [playing, setPlaying] = useState<{ step: number; note: string | undefined } | null>(null);
   /** The coaching note being typed, or null when no editor is open. */
   const [noteDraft, setNoteDraft] = useState<string | null>(null);
+  const [playbackActive, setPlaybackActive] = useState(false);
+  const [progressValue, setProgressValue] = useState(0);
+  const [loop, setLoop] = useState(false);
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [playsOpen, setPlaysOpen] = useState(false);
   const [savedPlays, setSavedPlays] = useState<PlaySummary[]>([]);
@@ -93,8 +96,9 @@ export default function App() {
   }, []);
   useEffect(() => clearHold, [clearHold]);
 
-  const { play, stop, isPlaying } = useTween({
+  const { play, stop, seek, progress, isPlaying } = useTween({
     durationMs: durationForPlay(state.steps, speed),
+    loop,
     onFrame: useCallback((t: number) => {
       const current = clip.current;
       if (!current) return;
@@ -103,6 +107,7 @@ export default function App() {
       setPlaying((prev) =>
         prev?.step === step ? prev : { step, note: current.steps[step]?.note },
       );
+      setProgressValue(t);
     }, []),
     // Playback never wrote to the board, so letting the overlay go is the
     // rewind: everyone is standing at the top of the play again, ready to run
@@ -112,6 +117,8 @@ export default function App() {
       holdTimer.current = setTimeout(() => {
         setAnimating(null);
         setPlaying(null);
+        setPlaybackActive(false);
+        clip.current = null;
         holdTimer.current = null;
       }, HOLD_AFTER_PLAY_MS);
     }, []),
@@ -121,9 +128,41 @@ export default function App() {
     if (!hasPlay(state)) return;
     setNoteDraft(null);
     clearHold();
-    clip.current = { tokens: state.tokens, steps: state.steps };
-    play();
-  }, [state, play, clearHold]);
+    if (playbackActive && clip.current) {
+      play(progress.current === 1 ? 0 : progress.current);
+    } else {
+      clip.current = { tokens: state.tokens, steps: state.steps };
+      setPlaybackActive(true);
+      play();
+    }
+  }, [state, play, clearHold, playbackActive, progress]);
+
+  const handlePause = useCallback(() => {
+    clearHold();
+    stop();
+  }, [clearHold, stop]);
+
+  const handleStop = useCallback(() => {
+    clearHold();
+    stop();
+    clip.current = null;
+    setAnimating(null);
+    setPlaying(null);
+    setPlaybackActive(false);
+    setProgressValue(0);
+    dispatch({ type: 'setActiveStep', index: 0 });
+  }, [clearHold, stop]);
+
+  const handleBeat = useCallback((direction: number) => {
+    if (!hasPlay(state)) return;
+    clearHold();
+    if (!clip.current) clip.current = { tokens: state.tokens, steps: state.steps };
+    const count = playableSteps(clip.current.steps).length;
+    const current = playbackActive ? progress.current * count : 0;
+    const beat = direction > 0 ? Math.floor(current + 0.000001) + 1 : Math.ceil(current - 0.000001) - 1;
+    setPlaybackActive(true);
+    seek(Math.max(0, Math.min(count, beat)) / count);
+  }, [state, clearHold, playbackActive, progress, seek]);
 
   // Tap a base to put a runner on it; tap it again to take him off.
   const handleToggleSlot = useCallback(
@@ -260,7 +299,7 @@ export default function App() {
             occupied={occupiedSlots(state.tokens)}
             onToggle={handleToggleSlot}
             onLoadBases={handleLoadBases}
-            disabled={isPlaying}
+            disabled={playbackActive}
           />
           <div className="play-caption">
             <strong>Step {noteStep + 1}</strong>
@@ -299,7 +338,7 @@ export default function App() {
               dispatch({ type: 'removeStep', index });
             }}
             onEditNote={() => setNoteDraft(state.steps[state.activeStep]?.note ?? '')}
-            disabled={isPlaying}
+            disabled={playbackActive}
           />
           <PlayControls
             onPlay={handlePlay}
@@ -309,6 +348,13 @@ export default function App() {
             speed={speed}
             onSpeedChange={setSpeed}
             isPlaying={isPlaying}
+            playbackActive={playbackActive}
+            onPause={handlePause}
+            onStop={handleStop}
+            onBeat={handleBeat}
+            progress={playbackActive ? progressValue : 0}
+            loop={loop}
+            onLoopChange={() => setLoop((value) => !value)}
             onMyPlays={showPlays}
           />
         </div>
@@ -318,7 +364,7 @@ export default function App() {
         tool={tool}
         onToolChange={setTool}
         onUndo={() => dispatch({ type: 'undo' })}
-        canUndo={state.undoStack.length > 0 && !isPlaying}
+        canUndo={state.undoStack.length > 0 && !playbackActive}
       />
 
       {playsOpen && (

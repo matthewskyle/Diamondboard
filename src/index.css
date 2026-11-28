@@ -473,12 +473,20 @@ body {
    chips, and let the last runner chip wrap so it stays in the left gutter
    instead of sitting on the left fielder. */
 @media (max-height: 420px) {
+  /* Keep in step with SHORT_SCREEN_QUERY in FieldStage.tsx. */
   .setup-chips,
-  .play-controls,
   .play-caption {
     align-self: flex-start;
     width: fit-content;
     max-width: 100%;
+  }
+
+  /* The transport group stays in the left gutter and the edit group goes to
+     the right one, leaving home plate open between them. The row itself
+     takes no presses, so the gap is grass. */
+  .play-dock > .play-controls {
+    justify-content: space-between;
+    pointer-events: none;
   }
 
   .setup-chips {
@@ -619,4 +627,13 @@ body {
 .my-plays-notice {
   margin: 0 0 0.7rem;
   font-size: 0.9rem;
+}
+
+.transport-controls {
+  flex-wrap: wrap;
+}
+
+.pill[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--ink);
 }

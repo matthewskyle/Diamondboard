@@ -131,12 +131,13 @@ export function positionsDuring(
 
 /**
  * The index of the step running `t` of the way through the play, on the same
- * clock as `positionsDuring`, or -1 when nothing moves.
+ * clock as `positionsDuring`, or -1 when nothing moves. On a beat boundary it
+ * names the beat that just finished, since that arrangement is what is held.
  */
 export function stepPlayingAt(steps: readonly PlayStep[], t: number): number {
   const playable = playableSteps(steps);
   if (playable.length === 0) return -1;
-  const slot = Math.min(Math.floor(clamp01(t) * playable.length), playable.length - 1);
+  const slot = Math.max(0, Math.ceil(clamp01(t) * playable.length - 1e-9) - 1);
   return playable[slot];
 }
 
