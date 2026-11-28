@@ -1,5 +1,5 @@
 ﻿import { expect, test } from '@playwright/test';
-import { drawArrow } from './drag';
+import { drawArrow, waitForFieldLayout } from './drag';
 
 test('presentation shows the current coaching note and restores the editor at the taught step', async ({ page }, info) => {
   await page.goto('/');
@@ -54,4 +54,30 @@ test('presentation shows the current coaching note and restores the editor at th
   await expect(page.getByTestId('step-2')).toHaveAttribute('aria-pressed', 'true');
   await expect(note).toHaveText('Cover second on the throw.');
   await expect(page.getByTestId('move-arrow')).toHaveCount(1);
+});
+
+test('entering presentation discards an unfinished field edit', async ({ page }, info) => {
+  test.skip(info.project.name !== 'iphone', 'checks the mode switch on a phone');
+  await page.goto('/');
+  await waitForFieldLayout(page);
+  await page.getByRole('button', { name: 'Reposition a player without giving him a move' }).tap();
+  const token = page.getByTestId('token-SS');
+  const position = async () => (await token.getAttribute('transform'))?.split(' scale(')[0];
+  const original = await position();
+  const box = await token.boundingBox();
+  const x = box!.x + box!.width / 2;
+  const y = box!.y + box!.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 45, y - 35, { steps: 12 });
+  await expect.poll(position).not.toBe(original);
+
+  await page.getByRole('button', { name: 'Presentation' }).focus();
+  await page.keyboard.press('Enter');
+  await page.mouse.up();
+  await expect(page.getByRole('button', { name: 'Exit presentation' })).toBeVisible();
+  await expect.poll(position).toBe(original);
+  await page.getByRole('button', { name: 'Exit presentation' }).tap();
+  await expect.poll(position).toBe(original);
+  await expect(page.getByTestId('undo')).toBeDisabled();
 });
