@@ -60,6 +60,43 @@ body {
   display: block;
 }
 
+.view-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: calc(0.7rem + env(safe-area-inset-right));
+  display: flex;
+  gap: 0.4rem;
+}
+
+.stage-infield {
+  flex-direction: column;
+}
+
+.stage-infield .field-svg {
+  flex: 1;
+  min-height: 0;
+}
+
+.stage-infield .play-dock {
+  position: static;
+  padding-bottom: 0.5rem;
+}
+
+@media (orientation: landscape) and (max-height: 850px) {
+  .stage-infield {
+    flex-direction: row;
+  }
+
+  .stage-infield .field-svg {
+    width: 0;
+  }
+
+  .stage-infield .play-dock {
+    width: min(25rem, 50%);
+    justify-content: flex-end;
+  }
+}
+
 /* --- Field ------------------------------------------------------------- */
 
 .fx-grass {

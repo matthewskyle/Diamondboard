@@ -69,6 +69,7 @@ export default function App() {
   const [state, dispatch] = useReducer(diagramReducer, boot.board);
   useAutosave(state, boot.persist);
   const [tool, setTool] = useState<Tool>('arrow');
+  const [infield, setInfield] = useState(false);
   const [animating, setAnimating] = useState<PositionMap | null>(null);
   /**
    * The running step and its note, taken from the clip so an edit mid-run
@@ -292,8 +293,19 @@ export default function App() {
 
   return (
     <div className="app">
-      <main className="stage">
-        <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} />
+      <main className={infield ? 'stage stage-infield' : 'stage'}>
+        <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} infield={infield} />
+        <div className="view-actions">
+          <button
+            type="button"
+            className="pill"
+            aria-label="Infield view"
+            aria-pressed={infield}
+            onClick={() => setInfield((value) => !value)}
+          >
+            {infield ? 'Full field' : 'Infield'}
+          </button>
+        </div>
         <div className="play-dock">
           <SetupChips
             occupied={occupiedSlots(state.tokens)}

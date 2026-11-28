@@ -24,19 +24,20 @@ test('the infield close-up enlarges the diamond without editing the play', async
   await expect(arrow).toHaveCount(1);
 
   await page.getByTestId('add-step').tap();
-  const beforePlay = await mover.getAttribute('transform');
+  const moverPosition = async () => (await mover.getAttribute('transform'))?.split(' scale(')[0];
+  const beforePlay = await moverPosition();
   await page.getByTestId('play').tap();
   await expect(page.getByRole('button', { name: 'Pause playback' })).toBeVisible();
   await expect(field).toHaveAttribute('viewBox', close!);
   await page.getByRole('button', { name: /Stop playback/ }).tap();
   await page.getByTestId('step-2').tap();
-  await expect(mover).toHaveAttribute('transform', beforePlay!);
+  await expect.poll(moverPosition).toBe(beforePlay);
 
   await toggle.tap();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   await expect(field).toHaveAttribute('viewBox', full!);
   await expect(outfielder).toHaveAttribute('transform', outfieldSpot!);
-  await expect(mover).toHaveAttribute('transform', beforePlay!);
+  await expect.poll(moverPosition).toBe(beforePlay);
   await expect(arrow).toHaveCount(1);
 });
 

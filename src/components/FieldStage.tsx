@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   clampToField,
   hitRadiusForScale,
+  INFIELD_VIEW,
   TOKEN_RADIUS,
   tokenScaleForScale,
   VIEW_BOX,
@@ -27,6 +28,7 @@ interface Props {
   tool: Tool;
   /** Positions driven by the animation transport; suppresses interaction. */
   animating: PositionMap | null;
+  infield: boolean;
 }
 
 interface AimState {
@@ -48,15 +50,19 @@ interface DragState {
 /** Ignore sub-pixel pointermove noise when recording a pen stroke. */
 const MIN_STROKE_STEP = 3;
 
-export function FieldStage({ state, dispatch, tool, animating }: Props) {
+export function FieldStage({ state, dispatch, tool, animating, infield }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const cropId = useId();
   const [drag, setDrag] = useState<DragState | null>(null);
   const [draft, setDraft] = useState<{ pointerId: number; points: Point[] } | null>(null);
   const [aim, setAim] = useState<AimState | null>(null);
-  const [viewHeight, setViewHeight] = useState<number>(VIEW_BOX.height);
-  // CSS pixels per viewBox unit, remembered from the last resize so the tokens
-  // can be drawn at a size a finger can actually find.
-  const [pxPerUnit, setPxPerUnit] = useState<number>(1);
+  const [size, setSize] = useState<{ width: number; height: number }>(VIEW_BOX);
+  const viewHeight = viewHeightFor(size.width / size.height);
+  const viewWidth = infield ? INFIELD_VIEW.width : VIEW_BOX.width;
+  const pxPerUnit = Math.min(
+    size.width / viewWidth,
+    size.height / (infield ? INFIELD_VIEW.height : viewHeight),
+  );
 
   // Track the container's shape so a rotation crops the board rather than
   // shrinking the field. Changing the viewBox doesn't resize the element, so
@@ -66,10 +72,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     if (!svg) return;
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) {
-        setViewHeight(viewHeightFor(width / height));
-        setPxPerUnit(width / VIEW_BOX.width);
-      }
+      if (width > 0 && height > 0) setSize({ width, height });
     });
     observer.observe(svg);
     return () => observer.disconnect();
@@ -78,6 +81,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
   // Drawn radius, in viewBox units. On a phone the tokens are magnified, so
   // the unscaled radius would leave the circle hanging off a viewBox edge.
   const tokenMargin = TOKEN_RADIUS * tokenScaleForScale(pxPerUnit);
+  const clamp = (point: Point) => clampToField(point, viewHeight, tokenMargin, infield);
 
   /**
    * ViewBox y where the play dock starts, or the bottom of the board when the
@@ -170,6 +174,10 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     // A running animation owns the tokens; don't let a stray touch fight it.
     if (animating || event.button > 0) return;
     const p = toFieldPoint(event);
+    if (infield && (
+      p.x < INFIELD_VIEW.x || p.x > INFIELD_VIEW.x + INFIELD_VIEW.width ||
+      p.y < INFIELD_VIEW.y || p.y > INFIELD_VIEW.y + INFIELD_VIEW.height
+    )) return;
 
     switch (tool) {
       case 'arrow': {
@@ -291,7 +299,9 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     <svg
       ref={svgRef}
       className="field-svg"
-      viewBox={viewBoxAttr(viewHeight)}
+      viewBox={infield
+        ? `${INFIELD_VIEW.x} ${INFIELD_VIEW.y} ${INFIELD_VIEW.width} ${INFIELD_VIEW.height}`
+        : viewBoxAttr(viewHeight)}
       preserveAspectRatio="xMidYMid meet"
       role="application"
       aria-label="Baseball field diagram"
@@ -302,20 +312,27 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
       onPointerCancel={handlePointerCancel}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <FieldSurface />
-      <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
-      <MoveArrowLayer
-        tokens={state.tokens}
-        steps={state.steps}
-        activeStep={state.activeStep}
-        aiming={aim}
-        playing={animating !== null}
-      />
-      <TokenLayer
-        tokens={state.tokens}
-        overrides={positions}
-        scale={tokenScaleForScale(pxPerUnit)}
-      />
+      <defs>
+        <clipPath id={cropId}>
+          <rect {...INFIELD_VIEW} />
+        </clipPath>
+      </defs>
+      <g clipPath={infield ? `url(#${cropId})` : undefined}>
+        <FieldSurface />
+        <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
+        <MoveArrowLayer
+          tokens={state.tokens}
+          steps={state.steps}
+          activeStep={state.activeStep}
+          aiming={aim}
+          playing={animating !== null}
+        />
+        <TokenLayer
+          tokens={state.tokens}
+          overrides={positions}
+          scale={tokenScaleForScale(pxPerUnit)}
+        />
+      </g>
     </svg>
   );
 }
