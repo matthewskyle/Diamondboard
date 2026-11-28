@@ -82,6 +82,33 @@ body {
   padding-bottom: 0.5rem;
 }
 
+.stage-presentation {
+  flex-direction: column;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.stage-presentation .field-svg {
+  flex: 1;
+  min-height: 0;
+}
+
+.presentation-dock {
+  padding: 0.4rem 0.5rem 0.5rem;
+  width: min(100%, 38rem);
+  align-self: center;
+}
+
+.presentation-dock .step-note {
+  padding: 0 0 0.35rem;
+}
+
+.presentation-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
 @media (orientation: landscape) and (max-height: 850px) {
   .stage-infield {
     flex-direction: row;

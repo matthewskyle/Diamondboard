@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { FieldStage } from './components/FieldStage';
 import { MyPlays } from './components/MyPlays';
-import { PlayControls } from './components/PlayControls';
+import { PlayControls, PresentationControls } from './components/PlayControls';
 import { SetupChips } from './components/SetupChips';
 import { StepBar } from './components/StepBar';
 import { StepNote } from './components/StepNote';
@@ -70,6 +70,7 @@ export default function App() {
   useAutosave(state, boot.persist);
   const [tool, setTool] = useState<Tool>('arrow');
   const [infield, setInfield] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [animating, setAnimating] = useState<PositionMap | null>(null);
   /**
    * The running step and its note, taken from the clip so an edit mid-run
@@ -143,7 +144,7 @@ export default function App() {
     stop();
   }, [clearHold, stop]);
 
-  const handleStop = useCallback(() => {
+  const clearPlayback = useCallback(() => {
     clearHold();
     stop();
     clip.current = null;
@@ -151,8 +152,12 @@ export default function App() {
     setPlaying(null);
     setPlaybackActive(false);
     setProgressValue(0);
-    dispatch({ type: 'setActiveStep', index: 0 });
   }, [clearHold, stop]);
+
+  const handleStop = () => {
+    clearPlayback();
+    dispatch({ type: 'setActiveStep', index: 0 });
+  };
 
   const handleBeat = useCallback((direction: number) => {
     if (!hasPlay(state)) return;
@@ -290,94 +295,141 @@ export default function App() {
   // During Play, and the hold after it, the note follows the running step.
   const noteStep = playing ? playing.step : state.activeStep;
   const shownNote = playing ? playing.note : state.steps[state.activeStep]?.note;
+  const coachingNote = (
+    <StepNote
+      stepNumber={noteStep + 1}
+      note={shownNote}
+      draft={presenting || playing ? null : noteDraft}
+      onDraftChange={setNoteDraft}
+      onCommit={(note) => dispatch({ type: 'setStepNote', index: state.activeStep, note })}
+    />
+  );
+  const selectTaughtStep = (index: number) => {
+    clearPlayback();
+    dispatch({ type: 'setActiveStep', index });
+  };
+  const stageClass = presenting ? 'stage stage-presentation' : infield ? 'stage stage-infield' : 'stage';
 
   return (
     <div className="app">
-      <main className={infield ? 'stage stage-infield' : 'stage'}>
-        <FieldStage state={state} dispatch={dispatch} tool={tool} animating={animating} infield={infield} />
-        <div className="view-actions">
-          <button
-            type="button"
-            className="pill"
-            aria-label="Infield view"
-            aria-pressed={infield}
-            onClick={() => setInfield((value) => !value)}
-          >
-            {infield ? 'Full field' : 'Infield'}
-          </button>
-        </div>
-        <div className="play-dock">
-          <SetupChips
-            occupied={occupiedSlots(state.tokens)}
-            onToggle={handleToggleSlot}
-            onLoadBases={handleLoadBases}
-            disabled={playbackActive}
-          />
-          <div className="play-caption">
-            <strong>Step {noteStep + 1}</strong>
-            <span hidden={shownNote !== undefined}>
-              {stepMovers === 0
-                ? drawn
-                  ? 'Nobody moves yet — hold a player and drag him where he goes.'
-                  : 'Hold a player and drag to where he goes. Everyone drawn in a step breaks together.'
-                : stepMovers === 1
-                  ? 'One player moving. Point anyone else who breaks on this beat too.'
-                  : `${stepMovers} players break together here. Add a step for what happens next.`}
-            </span>
+      <main className={stageClass}>
+        <FieldStage
+          state={state}
+          dispatch={dispatch}
+          tool={tool}
+          animating={animating}
+          infield={infield}
+          readOnly={presenting}
+        />
+        {presenting ? (
+          <div className="presentation-dock">
+            {coachingNote}
+            <PresentationControls
+              canPlay={drawn}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              isPlaying={isPlaying}
+              playbackActive={playbackActive}
+              loop={loop}
+              onLoopChange={() => setLoop((value) => !value)}
+              step={noteStep}
+              stepCount={state.steps.length}
+              onStep={selectTaughtStep}
+              onExit={() => {
+                selectTaughtStep(noteStep);
+                setPresenting(false);
+              }}
+            />
           </div>
-          <StepNote
-            stepNumber={noteStep + 1}
-            note={shownNote}
-            draft={playing ? null : noteDraft}
-            onDraftChange={setNoteDraft}
-            onCommit={(note) => dispatch({ type: 'setStepNote', index: state.activeStep, note })}
-          />
-          <StepBar
-            steps={state.steps}
-            activeStep={state.activeStep}
-            // Changing steps drops an unsaved draft rather than writing it onto
-            // the wrong step.
-            onSelect={(index) => {
-              setNoteDraft(null);
-              dispatch({ type: 'setActiveStep', index });
-            }}
-            onAdd={() => {
-              setNoteDraft(null);
-              dispatch({ type: 'addStep' });
-            }}
-            onRemove={(index) => {
-              setNoteDraft(null);
-              dispatch({ type: 'removeStep', index });
-            }}
-            onEditNote={() => setNoteDraft(state.steps[state.activeStep]?.note ?? '')}
-            disabled={playbackActive}
-          />
-          <PlayControls
-            onPlay={handlePlay}
-            onClear={() => dispatch({ type: 'clearSteps' })}
-            onReset={handleReset}
-            canPlay={drawn}
-            speed={speed}
-            onSpeedChange={setSpeed}
-            isPlaying={isPlaying}
-            playbackActive={playbackActive}
-            onPause={handlePause}
-            onStop={handleStop}
-            onBeat={handleBeat}
-            progress={playbackActive ? progressValue : 0}
-            loop={loop}
-            onLoopChange={() => setLoop((value) => !value)}
-            onMyPlays={showPlays}
-          />
-        </div>
+        ) : (
+          <>
+            <div className="view-actions">
+              <button
+                type="button"
+                className="pill"
+                aria-label="Infield view"
+                aria-pressed={infield}
+                onClick={() => setInfield((value) => !value)}
+              >
+                {infield ? 'Full field' : 'Infield'}
+              </button>
+              <button type="button" className="pill" onClick={() => {
+                setNoteDraft(null);
+                setPresenting(true);
+              }}>
+                Presentation
+              </button>
+            </div>
+            <div className="play-dock">
+              <SetupChips
+                occupied={occupiedSlots(state.tokens)}
+                onToggle={handleToggleSlot}
+                onLoadBases={handleLoadBases}
+                disabled={playbackActive}
+              />
+              <div className="play-caption">
+                <strong>Step {noteStep + 1}</strong>
+                <span hidden={shownNote !== undefined}>
+                  {stepMovers === 0
+                    ? drawn
+                      ? 'Nobody moves yet — hold a player and drag him where he goes.'
+                      : 'Hold a player and drag to where he goes. Everyone drawn in a step breaks together.'
+                    : stepMovers === 1
+                      ? 'One player moving. Point anyone else who breaks on this beat too.'
+                      : `${stepMovers} players break together here. Add a step for what happens next.`}
+                </span>
+              </div>
+              {coachingNote}
+              <StepBar
+                steps={state.steps}
+                activeStep={state.activeStep}
+                // Changing steps drops an unsaved draft rather than writing it onto
+                // the wrong step.
+                onSelect={(index) => {
+                  setNoteDraft(null);
+                  dispatch({ type: 'setActiveStep', index });
+                }}
+                onAdd={() => {
+                  setNoteDraft(null);
+                  dispatch({ type: 'addStep' });
+                }}
+                onRemove={(index) => {
+                  setNoteDraft(null);
+                  dispatch({ type: 'removeStep', index });
+                }}
+                onEditNote={() => setNoteDraft(state.steps[state.activeStep]?.note ?? '')}
+                disabled={playbackActive}
+              />
+              <PlayControls
+                onPlay={handlePlay}
+                onClear={() => dispatch({ type: 'clearSteps' })}
+                onReset={handleReset}
+                canPlay={drawn}
+                speed={speed}
+                onSpeedChange={setSpeed}
+                isPlaying={isPlaying}
+                playbackActive={playbackActive}
+                onPause={handlePause}
+                onStop={handleStop}
+                onBeat={handleBeat}
+                progress={playbackActive ? progressValue : 0}
+                loop={loop}
+                onLoopChange={() => setLoop((value) => !value)}
+                onMyPlays={showPlays}
+              />
+            </div>
+          </>
+        )}
       </main>
 
-      <Toolbar
-        tool={tool}
-        onToolChange={setTool}
-        onUndo={() => dispatch({ type: 'undo' })}
-        canUndo={state.undoStack.length > 0 && !playbackActive}
-      />
+      {!presenting && (
+        <Toolbar
+          tool={tool}
+          onToolChange={setTool}
+          onUndo={() => dispatch({ type: 'undo' })}
+          canUndo={state.undoStack.length > 0 && !playbackActive}
+        />
+      )}
 
       {playsOpen && (
         <MyPlays

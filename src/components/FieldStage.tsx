@@ -29,6 +29,7 @@ interface Props {
   /** Positions driven by the animation transport; suppresses interaction. */
   animating: PositionMap | null;
   infield: boolean;
+  readOnly: boolean;
 }
 
 interface AimState {
@@ -50,7 +51,7 @@ interface DragState {
 /** Ignore sub-pixel pointermove noise when recording a pen stroke. */
 const MIN_STROKE_STEP = 3;
 
-export function FieldStage({ state, dispatch, tool, animating, infield }: Props) {
+export function FieldStage({ state, dispatch, tool, animating, infield, readOnly }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const cropId = useId();
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -306,9 +307,9 @@ export function FieldStage({ state, dispatch, tool, animating, infield }: Props)
       role="application"
       aria-label="Baseball field diagram"
       data-testid="field"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onPointerDown={readOnly ? undefined : handlePointerDown}
+      onPointerMove={readOnly ? undefined : handlePointerMove}
+      onPointerUp={readOnly ? undefined : handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -319,12 +320,12 @@ export function FieldStage({ state, dispatch, tool, animating, infield }: Props)
       </defs>
       <g clipPath={infield ? `url(#${cropId})` : undefined}>
         <FieldSurface />
-        <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
+        <StrokeLayer strokes={state.strokes} drafting={readOnly ? null : draft?.points ?? null} />
         <MoveArrowLayer
           tokens={state.tokens}
           steps={state.steps}
           activeStep={state.activeStep}
-          aiming={aim}
+          aiming={readOnly ? null : aim}
           playing={animating !== null}
         />
         <TokenLayer

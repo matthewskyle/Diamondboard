@@ -19,6 +19,56 @@ interface Props {
   onLoopChange: () => void;
 }
 
+type PlayPauseProps = Pick<Props, 'onPlay' | 'onPause' | 'isPlaying' | 'playbackActive' | 'canPlay'>;
+
+function PlayPauseButton({ onPlay, onPause, isPlaying, playbackActive, canPlay }: PlayPauseProps) {
+  return (
+    <button
+      type="button"
+      className="pill pill-primary"
+      data-testid="play"
+      onClick={isPlaying ? onPause : onPlay}
+      aria-label={isPlaying ? 'Pause playback' : playbackActive ? 'Resume playback' : 'Play'}
+      disabled={!canPlay}
+    >
+      {isPlaying ? 'Pause' : playbackActive ? 'Resume' : 'Play'}
+    </button>
+  );
+}
+
+function LoopButton({ loop, onLoopChange }: Pick<Props, 'loop' | 'onLoopChange'>) {
+  return (
+    <button type="button" className="pill" onClick={onLoopChange} aria-pressed={loop} aria-label="Loop playback">
+      Loop
+    </button>
+  );
+}
+
+interface PresentationProps extends PlayPauseProps, Pick<Props, 'loop' | 'onLoopChange'> {
+  step: number;
+  stepCount: number;
+  onStep: (index: number) => void;
+  onExit: () => void;
+}
+
+export function PresentationControls({ step, stepCount, onStep, onExit, loop, onLoopChange, ...playback }: PresentationProps) {
+  return (
+    <div className="presentation-controls" role="group" aria-label="Presentation controls">
+      <PlayPauseButton {...playback} />
+      <button type="button" className="pill" aria-label="Previous step" disabled={step === 0} onClick={() => onStep(step - 1)}>
+        Prev
+      </button>
+      <button type="button" className="pill" aria-label="Next step" disabled={step === stepCount - 1} onClick={() => onStep(step + 1)}>
+        Next
+      </button>
+      <LoopButton loop={loop} onLoopChange={onLoopChange} />
+      <button type="button" className="pill pill-light" aria-label="Exit presentation" onClick={onExit}>
+        Exit
+      </button>
+    </div>
+  );
+}
+
 /** Floats over the bottom-left of the field, clear of the tool bar. */
 export function PlayControls({
   onPlay,
@@ -43,16 +93,7 @@ export function PlayControls({
   return (
     <div className="play-controls">
       <div className="pill-group transport-controls">
-        <button
-          type="button"
-          className="pill pill-primary"
-          data-testid="play"
-          onClick={isPlaying ? onPause : onPlay}
-          aria-label={isPlaying ? 'Pause playback' : playbackActive ? 'Resume playback' : 'Play'}
-          disabled={!canPlay}
-        >
-          {isPlaying ? 'Pause' : playbackActive ? 'Resume' : 'Play'}
-        </button>
+        <PlayPauseButton {...{ onPlay, onPause, isPlaying, playbackActive, canPlay }} />
         <button
           type="button"
           className="pill pill-speed"
@@ -89,15 +130,7 @@ export function PlayControls({
         >
           Next
         </button>
-        <button
-          type="button"
-          className="pill"
-          onClick={onLoopChange}
-          aria-pressed={loop}
-          aria-label="Loop playback"
-        >
-          Loop
-        </button>
+        <LoopButton loop={loop} onLoopChange={onLoopChange} />
       </div>
       <div className="pill-group">
         <button
