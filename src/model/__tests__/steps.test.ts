@@ -150,6 +150,15 @@ describe('which step is playing', () => {
     expect(stepPlayingAt(steps, 1)).toBe(2);
   });
 
+  it('names the beat that just finished when held on a beat boundary', () => {
+    // Next beat holds t = 1/2: the board shows step 1's finished arrangement,
+    // so step 1's note is the one being taught, not step 2's.
+    expect(stepPlayingAt(steps, 0.5)).toBe(1);
+    const three = [...steps, step('s3', { a: { x: 50, y: 50 } })];
+    expect(stepPlayingAt(three, 1 / 3)).toBe(1);
+    expect(stepPlayingAt(three, 2 / 3)).toBe(2);
+  });
+
   it('has nothing playing when no step moves anybody', () => {
     expect(stepPlayingAt([step('s0', {})], 0.5)).toBe(-1);
   });

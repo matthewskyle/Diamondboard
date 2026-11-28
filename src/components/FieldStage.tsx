@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   clampToField,
   hitRadiusForScale,
+  INFIELD_VIEW,
   TOKEN_RADIUS,
   tokenScaleForScale,
   VIEW_BOX,
@@ -18,17 +19,23 @@ import { MoveArrowLayer } from './MoveArrowLayer';
 import { StrokeLayer } from './StrokeLayer';
 import { TokenLayer } from './TokenLayer';
 
+/** Must match the short-screen `@media` block in index.css that slims the dock rows. */
+const SHORT_SCREEN_QUERY = '(max-height: 420px)';
+
 interface Props {
   state: DiagramState;
   dispatch: (action: DiagramAction) => void;
   tool: Tool;
   /** Positions driven by the animation transport; suppresses interaction. */
   animating: PositionMap | null;
+  infield: boolean;
+  readOnly: boolean;
 }
 
 interface AimState {
   pointerId: number;
   tokenId: string;
+  start: Point;
   from: Point;
   to: Point;
 }
@@ -45,15 +52,19 @@ interface DragState {
 /** Ignore sub-pixel pointermove noise when recording a pen stroke. */
 const MIN_STROKE_STEP = 3;
 
-export function FieldStage({ state, dispatch, tool, animating }: Props) {
+export function FieldStage({ state, dispatch, tool, animating, infield, readOnly }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const cropId = useId();
   const [drag, setDrag] = useState<DragState | null>(null);
   const [draft, setDraft] = useState<{ pointerId: number; points: Point[] } | null>(null);
   const [aim, setAim] = useState<AimState | null>(null);
-  const [viewHeight, setViewHeight] = useState<number>(VIEW_BOX.height);
-  // CSS pixels per viewBox unit, remembered from the last resize so the tokens
-  // can be drawn at a size a finger can actually find.
-  const [pxPerUnit, setPxPerUnit] = useState<number>(1);
+  const [size, setSize] = useState<{ width: number; height: number }>(VIEW_BOX);
+  const viewHeight = viewHeightFor(size.width / size.height);
+  const viewWidth = infield ? INFIELD_VIEW.width : VIEW_BOX.width;
+  const pxPerUnit = Math.min(
+    size.width / viewWidth,
+    size.height / (infield ? INFIELD_VIEW.height : viewHeight),
+  );
 
   // Track the container's shape so a rotation crops the board rather than
   // shrinking the field. Changing the viewBox doesn't resize the element, so
@@ -63,10 +74,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     if (!svg) return;
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) {
-        setViewHeight(viewHeightFor(width / height));
-        setPxPerUnit(width / VIEW_BOX.width);
-      }
+      if (width > 0 && height > 0) setSize({ width, height });
     });
     observer.observe(svg);
     return () => observer.disconnect();
@@ -94,18 +102,28 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
 
   const clamp = useCallback(
     (p: Point): Point => {
-      const fitted = clampToField(p, viewHeight, tokenMargin);
+      const fitted = clampToField(p, viewHeight, tokenMargin, infield);
+      if (infield) return fitted;
       const svg = svgRef.current;
       const ctm = svg?.getScreenCTM();
       if (!svg || !ctm) return fitted;
-      // The dock's box covers a short landscape screen, including grass the
-      // rows do not. Only a center that lands on a row is stopped above it.
       const screen = new DOMPoint(fitted.x, fitted.y).matrixTransform(ctm);
-      const hit = document.elementFromPoint(screen.x, screen.y);
-      if (!hit?.closest('.play-dock')) return fitted;
+      const dock = svg.parentElement?.querySelector('.play-dock');
+      if (!(dock instanceof HTMLElement)) return fitted;
+      if (window.matchMedia(SHORT_SCREEN_QUERY).matches) {
+        // The dock's box covers a short landscape screen, including grass the
+        // rows do not. Only a center that lands on a row is stopped above it.
+        const hit = document.elementFromPoint(screen.x, screen.y);
+        if (!hit?.closest('.play-dock')) return fitted;
+      } else {
+        // Elsewhere the rows stretch across the board as one band. Its caption
+        // takes no presses, so test the band's box rather than what is hit.
+        const band = dock.getBoundingClientRect();
+        if (screen.y < band.top || screen.x < band.left || screen.x > band.right) return fitted;
+      }
       return clampToField(p, fieldCeiling(), tokenMargin);
     },
-    [fieldCeiling, tokenMargin, viewHeight],
+    [fieldCeiling, infield, tokenMargin, viewHeight],
   );
 
   /**
@@ -147,6 +165,8 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
    * drag costs everything.
    */
   const capture = (event: React.PointerEvent<SVGSVGElement>) => {
+    // Keep a field drag from starting WebKit's native text drag over the dock.
+    event.preventDefault();
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -158,6 +178,10 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     // A running animation owns the tokens; don't let a stray touch fight it.
     if (animating || event.button > 0) return;
     const p = toFieldPoint(event);
+    if (infield && (
+      p.x < INFIELD_VIEW.x || p.x > INFIELD_VIEW.x + INFIELD_VIEW.width ||
+      p.y < INFIELD_VIEW.y || p.y > INFIELD_VIEW.y + INFIELD_VIEW.height
+    )) return;
 
     switch (tool) {
       case 'arrow': {
@@ -169,6 +193,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
         setAim({
           pointerId: event.pointerId,
           tokenId: token.id,
+          start: p,
           from: { x: token.x, y: token.y },
           to: { x: token.x, y: token.y },
         });
@@ -233,8 +258,12 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
 
   const handlePointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
     if (aim?.pointerId === event.pointerId) {
-      const reach = Math.hypot(aim.to.x - aim.from.x, aim.to.y - aim.from.y);
-      if (reach < MIN_ARROW_LENGTH) {
+      // WebKit can deliver the release before React paints the final drag preview.
+      const release = toFieldPoint(event);
+      const to = clamp(release);
+      const travel = Math.hypot(release.x - aim.start.x, release.y - aim.start.y);
+      const reach = Math.hypot(to.x - aim.from.x, to.y - aim.from.y);
+      if (travel < MIN_ARROW_LENGTH || reach < MIN_ARROW_LENGTH) {
         // A tap rather than a drag: take this step's arrow back off.
         dispatch({ type: 'clearDestination', id: aim.tokenId });
       } else {
@@ -244,7 +273,7 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
           // Aimed at a bag or a teammate, land on it exactly.
           to: snapToTarget(
             placed.filter((t) => t.id !== aim.tokenId),
-            aim.to,
+            to,
             hitRadiusForScale(currentScale()),
           ),
         });
@@ -279,31 +308,40 @@ export function FieldStage({ state, dispatch, tool, animating }: Props) {
     <svg
       ref={svgRef}
       className="field-svg"
-      viewBox={viewBoxAttr(viewHeight)}
+      viewBox={infield
+        ? `${INFIELD_VIEW.x} ${INFIELD_VIEW.y} ${INFIELD_VIEW.width} ${INFIELD_VIEW.height}`
+        : viewBoxAttr(viewHeight)}
       preserveAspectRatio="xMidYMid meet"
-      role="application"
+      role={readOnly ? 'img' : 'application'}
       aria-label="Baseball field diagram"
       data-testid="field"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      onPointerDown={readOnly ? undefined : handlePointerDown}
+      onPointerMove={readOnly ? undefined : handlePointerMove}
+      onPointerUp={readOnly ? undefined : handlePointerUp}
       onPointerCancel={handlePointerCancel}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <FieldSurface />
-      <StrokeLayer strokes={state.strokes} drafting={draft?.points ?? null} />
-      <MoveArrowLayer
-        tokens={state.tokens}
-        steps={state.steps}
-        activeStep={state.activeStep}
-        aiming={aim}
-        playing={animating !== null}
-      />
-      <TokenLayer
-        tokens={state.tokens}
-        overrides={positions}
-        scale={tokenScaleForScale(pxPerUnit)}
-      />
+      <defs>
+        <clipPath id={cropId}>
+          <rect {...INFIELD_VIEW} />
+        </clipPath>
+      </defs>
+      <g clipPath={infield ? `url(#${cropId})` : undefined}>
+        <FieldSurface />
+        <StrokeLayer strokes={state.strokes} drafting={readOnly ? null : draft?.points ?? null} />
+        <MoveArrowLayer
+          tokens={state.tokens}
+          steps={state.steps}
+          activeStep={state.activeStep}
+          aiming={readOnly ? null : aim}
+          playing={animating !== null}
+        />
+        <TokenLayer
+          tokens={state.tokens}
+          overrides={positions}
+          scale={tokenScaleForScale(pxPerUnit)}
+        />
+      </g>
     </svg>
   );
 }

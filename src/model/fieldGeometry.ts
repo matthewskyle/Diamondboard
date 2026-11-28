@@ -25,6 +25,8 @@ import type { Point } from './path';
  */
 
 export const VIEW_BOX = { width: 1000, height: 1130 } as const;
+/** The diamond, catcher, and the grass just behind the infielders. */
+export const INFIELD_VIEW = { x: 240, y: 255, width: 520, height: 500 } as const;
 
 /**
  * The shortest board worth drawing: everything the field renders, including the
@@ -262,11 +264,12 @@ export function clampToField(
   p: Point,
   viewHeight: number = VIEW_BOX.height,
   margin: number = TOKEN_RADIUS,
+  infield = false,
 ): Point {
-  const m = margin;
+  const view = infield ? INFIELD_VIEW : { x: 0, y: 0, width: VIEW_BOX.width, height: viewHeight };
   return {
-    x: Math.min(Math.max(p.x, m), VIEW_BOX.width - m),
-    y: Math.min(Math.max(p.y, m), viewHeight - m),
+    x: Math.min(Math.max(p.x, view.x + margin), view.x + view.width - margin),
+    y: Math.min(Math.max(p.y, view.y + margin), view.y + view.height - margin),
   };
 }
 

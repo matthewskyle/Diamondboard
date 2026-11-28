@@ -60,6 +60,126 @@ body {
   display: block;
 }
 
+.view-actions {
+  position: absolute;
+  z-index: 1;
+  top: 0.5rem;
+  left: calc(0.7rem + env(safe-area-inset-left));
+  right: calc(0.7rem + env(safe-area-inset-right));
+  display: flex;
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.view-actions > * {
+  pointer-events: auto;
+}
+
+.view-actions > .pill-group {
+  flex-wrap: wrap;
+}
+
+.practice-session {
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+  gap: 0.4rem;
+  border-radius: 10px;
+  background: var(--pill);
+  color: var(--pill-ink);
+}
+
+.practice-progress {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 10rem;
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+.practice-progress strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-start {
+  margin-top: 0.75rem;
+}
+
+.stage-infield {
+  flex-direction: column;
+}
+
+.stage-infield .field-svg {
+  flex: 1;
+  min-height: min(44dvh, 66vw);
+}
+
+.stage-infield .play-dock {
+  position: static;
+  min-height: 0;
+  padding-bottom: 0.5rem;
+}
+
+.stage-infield .play-details {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.stage-infield .play-details > *,
+.stage-infield .play-controls {
+  flex-shrink: 0;
+}
+
+.stage-presentation {
+  flex-direction: column;
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.stage-presentation .field-svg {
+  flex: 1;
+  min-height: 0;
+}
+
+.presentation-dock {
+  padding: 0.4rem 0.5rem 0.5rem;
+  width: min(100%, 38rem);
+  align-self: center;
+}
+
+.presentation-dock .step-note {
+  padding: 0 0 0.35rem;
+}
+
+.presentation-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+@media (orientation: landscape) and (max-height: 850px) {
+  .stage-infield {
+    flex-direction: row;
+  }
+
+  .stage-infield .field-svg {
+    width: 0;
+    min-height: 0;
+  }
+
+  .stage-infield .play-dock {
+    width: min(25rem, 50%);
+    justify-content: flex-end;
+    padding-top: 3.7rem;
+  }
+}
+
 /* --- Field ------------------------------------------------------------- */
 
 .fx-grass {
@@ -291,6 +411,21 @@ body {
   pointer-events: auto;
 }
 
+.play-dock > .play-details {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  pointer-events: none;
+}
+
+.play-details > * {
+  pointer-events: auto;
+}
+
+.stage-infield .play-dock > .play-details {
+  pointer-events: auto;
+}
+
 .play-caption {
   display: flex;
   flex-direction: column;
@@ -473,12 +608,20 @@ body {
    chips, and let the last runner chip wrap so it stays in the left gutter
    instead of sitting on the left fielder. */
 @media (max-height: 420px) {
+  /* Keep in step with SHORT_SCREEN_QUERY in FieldStage.tsx. */
   .setup-chips,
-  .play-controls,
   .play-caption {
     align-self: flex-start;
     width: fit-content;
     max-width: 100%;
+  }
+
+  /* The transport group stays in the left gutter and the edit group goes to
+     the right one, leaving home plate open between them. The row itself
+     takes no presses, so the gap is grass. */
+  .play-dock > .play-controls {
+    justify-content: space-between;
+    pointer-events: none;
   }
 
   .setup-chips {
@@ -505,6 +648,16 @@ body {
 }
 
 @media (max-width: 480px) {
+  .view-actions {
+    top: 1.25rem;
+  }
+
+  .stage-infield .view-actions {
+    position: static;
+    order: -1;
+    margin: 1.25rem calc(0.7rem + env(safe-area-inset-right)) 0 calc(0.7rem + env(safe-area-inset-left));
+  }
+
   .play-dock {
     bottom: 0.5rem;
     gap: 0.35rem;
@@ -549,6 +702,17 @@ body {
   border-radius: 16px 16px 0 0;
   padding: 0.8rem 0.8rem calc(0.8rem + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 24px rgb(0 0 0 / 0.28);
+}
+
+.practice-dialog {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0 auto;
+  border: 0;
+}
+
+.practice-dialog::backdrop {
+  background: rgb(19 24 38 / 0.45);
 }
 
 .my-plays-head {
@@ -619,4 +783,13 @@ body {
 .my-plays-notice {
   margin: 0 0 0.7rem;
   font-size: 0.9rem;
+}
+
+.transport-controls {
+  flex-wrap: wrap;
+}
+
+.pill[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--ink);
 }

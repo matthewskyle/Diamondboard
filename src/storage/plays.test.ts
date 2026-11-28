@@ -7,10 +7,13 @@ import {
   duplicatePlay,
   listPlays,
   openPlay,
+  openPracticePlay,
   readLibrary,
+  readPracticeQueue,
   renamePlay,
   savePlay,
   writeCurrentBoard,
+  writePracticeQueue,
   type KeyValueStore,
 } from './library';
 
@@ -63,6 +66,64 @@ function documentOf(storage: { raw: () => string | null }) {
     }>;
   };
 }
+
+describe('the practice queue', () => {
+  it('keeps queue order and the current play across autosaves and saved-play edits', () => {
+    const storage = memoryStorage();
+    const board = runnerBoard();
+    const cutoffs = initialState();
+    savePlay(storage, board, 'Bunts', { id: 'bunts' });
+    savePlay(storage, cutoffs, 'Cutoffs', { id: 'cutoffs' });
+    expect(writePracticeQueue(storage, board, {
+      name: '  Tuesday  ',
+      playIds: ['bunts', 'cutoffs', 'bunts'],
+      activeIndex: null,
+    })).toMatchObject({ ok: true, queue: { name: 'Tuesday' } });
+
+    expect(openPracticePlay(storage, 1)).toMatchObject({ ok: true, queue: { activeIndex: 1 } });
+    expect(readLibrary(storage)).toMatchObject({ status: 'restored', board: cutoffs });
+    writeCurrentBoard(storage, board);
+    renamePlay(storage, 'cutoffs', 'Relay');
+    duplicatePlay(storage, 'cutoffs', { id: 'relay-copy' });
+    savePlay(storage, board, 'Steals', { id: 'steals' });
+    expect(readPracticeQueue(storage)).toEqual({
+      ok: true,
+      queue: { name: 'Tuesday', playIds: ['bunts', 'cutoffs', 'bunts'], activeIndex: 1 },
+    });
+
+    deletePlay(storage, 'bunts');
+    expect(readPracticeQueue(storage)).toEqual({
+      ok: true,
+      queue: { name: 'Tuesday', playIds: ['cutoffs'], activeIndex: 0 },
+    });
+  });
+
+  it('keeps both the queue position and board when storage rejects a play switch', () => {
+    const storage = memoryStorage();
+    const board = runnerBoard();
+    savePlay(storage, board, 'Bunts', { id: 'bunts' });
+    savePlay(storage, initialState(), 'Cutoffs', { id: 'cutoffs' });
+    writePracticeQueue(storage, board, {
+      name: 'Tuesday', playIds: ['bunts', 'cutoffs'], activeIndex: null,
+    });
+    openPracticePlay(storage, 0);
+    const before = storage.raw();
+    expect(openPracticePlay({
+      getItem: storage.getItem,
+      setItem() { throw new Error('QuotaExceededError'); },
+    }, 1)).toEqual({ ok: false, reason: 'unavailable' });
+    expect(storage.raw()).toBe(before);
+  });
+
+  it('leaves a future library document intact', () => {
+    const future = '{"version":100}';
+    const storage = memoryStorage({ [STORAGE_KEY]: future });
+    expect(writePracticeQueue(storage, initialState(), {
+      name: 'Tuesday', playIds: [], activeIndex: null,
+    })).toEqual({ ok: false, reason: 'future' });
+    expect(storage.raw()).toBe(future);
+  });
+});
 
 /** A board whose ids sit far above anything the rest of the suite mints. */
 function highIdBoard(): DiagramState {
