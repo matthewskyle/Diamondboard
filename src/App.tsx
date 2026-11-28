@@ -147,6 +147,7 @@ export default function App() {
     stop();
     clip.current = null;
     setAnimating(null);
+    setPlaying(null);
     setPlaybackActive(false);
     setProgressValue(0);
     dispatch({ type: 'setActiveStep', index: 0 });
